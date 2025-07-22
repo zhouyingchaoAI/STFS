@@ -1,0 +1,12 @@
+current_version: '20250718'
+default_algorithm: lstm
+model_root_dir: models/hour
+train_params:
+  batch_size: 32
+  dropout: 0.2
+  epochs: 100
+  hidden_size: 50
+  learning_rate: 0.001
+  lookback_days: 7
+  num_layers: 2
+  patience: 10
