@@ -1,0 +1,13 @@
+current_version: '20250718'
+default_algorithm: knn
+model_root_dir: models/daily
+train_params:
+  batch_size: null
+  dropout: null
+  epochs: null
+  hidden_size: null
+  learning_rate: null
+  lookback_days: null
+  n_neighbors: 5
+  num_layers: null
+  patience: null
