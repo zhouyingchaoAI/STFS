@@ -391,3 +391,21 @@ Streamlit 界面无法加载：
 实时数据更新：集成实时数据流，动态更新预测模型。
 更多特征：在 KNN 或其他模型中加入天气、节假日等外部特征。
 自动化调度：实现定时任务，自动运行预测并更新数据库。
+
+
+nohup uvicorn server:app --host 0.0.0.0 --port 4566 --reload > log-openapi.txt 2>&1 &
+nohup streamlit run main.py --server.address 0.0.0.0 --server.port 4577  > log-ui.txt 2>&1 &
+docker run -p 8522:22 -p 4566:4566 -p 4577:4577  --name keliu-model -itd -v /home/chency/STFS-V1/:/STFS-V1 keliu-mode:v2
+
+
+python:3.10-slim
+pip install streamlit -i https://pypi.tuna.tsinghua.edu.cn/simple
+pip install pyyaml -i https://pypi.tuna.tsinghua.edu.cn/simple
+pip install pymssql -i https://pypi.tuna.tsinghua.edu.cn/simple
+pip install scikit-learn -i https://pypi.tuna.tsinghua.edu.cn/simple
+pip install matplotlib -i https://pypi.tuna.tsinghua.edu.cn/simple
+pip install uvicorn -i https://pypi.tuna.tsinghua.edu.cn/simple
+pip install fastapi -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+sudo apt-get update
+sudo apt-get install -y fonts-noto-cjk

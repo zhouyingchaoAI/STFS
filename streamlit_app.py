@@ -1,370 +1,568 @@
-# Streamlit 应用模块：提供 Web 界面进行客流预测
+# streamlit_app.py
+# 主框架：负责页面布局、主题、tab切换，调用小时/天预测子模块
+
 import streamlit as st
-import pandas as pd
 from datetime import datetime
 from config_utils import load_yaml_config, save_yaml_config
-from predict_hourly import predict_and_plot_timeseries_flow
-from predict_daily import predict_and_plot_timeseries_flow_daily
 import os
-import matplotlib.pyplot as plt
 
-def get_model_versions(model_dir, prefix=""):
-    """获取模型目录下所有模型版本（以日期为子目录）"""
-    if not os.path.exists(model_dir):
-        return []
-    # 只列出日期子目录
-    dirs = [d for d in os.listdir(model_dir) if os.path.isdir(os.path.join(model_dir, d))]
-    # 只保留8位数字的日期目录
-    versions = [d for d in dirs if len(d) == 8 and d.isdigit()]
-    versions.sort(reverse=True)
-    return versions
+# --------- 仅深色主题色与样式设置 ---------
+DARK_THEME = {
+    "SUBWAY_PRIMARY": "#00e09e",
+    "SUBWAY_SECONDARY": "#00bfff",
+    "SUBWAY_ACCENT": "#7c4dff",
+    "SUBWAY_PINK": "#ff4081",
+    "SUBWAY_ORANGE": "#ff9800",
+    "SUBWAY_YELLOW": "#ffc107",
+    "SUBWAY_BG": "#0a0d1a",
+    "SUBWAY_CARD": "#1a1f2e",
+    "SUBWAY_SURFACE": "#242938",
+    "SUBWAY_FONT": "#ffffff",
+    "SUBWAY_FONT_SECONDARY": "#b8c5d6",
+    "SUBWAY_DARK": "#121620",
+    "SUBWAY_SUCCESS": "#4caf50",
+    "SUBWAY_WARNING": "#ff9800",
+    "SUBWAY_ERROR": "#f44336",
+}
 
-def plot_hourly_flow(df_plot, line_name=None):
-    fig, ax = plt.subplots(figsize=(10, 4))
-    if line_name is not None:
-        ax.plot(df_plot["小时"], df_plot["预测客流"], marker='o', label=line_name)
-        ax.legend()
-    else:
-        ax.plot(df_plot["小时"], df_plot["预测客流"], marker='o')
-    ax.set_xlabel("小时")
-    ax.set_ylabel("预测客流")
-    ax.set_xticks(df_plot["小时"])
-    ax.set_title("小时预测客流量" + (f" - {line_name}" if line_name else ""))
-    ax.grid(True, linestyle='--', alpha=0.5)
-    st.pyplot(fig)
+def subway_optimized_style(theme):
+    st.markdown(
+        f"""
+        <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+        
+        :root {{
+            --primary: {theme['SUBWAY_PRIMARY']};
+            --secondary: {theme['SUBWAY_SECONDARY']};
+            --accent: {theme['SUBWAY_ACCENT']};
+            --pink: {theme['SUBWAY_PINK']};
+            --orange: {theme['SUBWAY_ORANGE']};
+            --yellow: {theme['SUBWAY_YELLOW']};
+            --bg: {theme['SUBWAY_BG']};
+            --card: {theme['SUBWAY_CARD']};
+            --surface: {theme['SUBWAY_SURFACE']};
+            --font: {theme['SUBWAY_FONT']};
+            --font-secondary: {theme['SUBWAY_FONT_SECONDARY']};
+            --dark: {theme['SUBWAY_DARK']};
+            --success: {theme['SUBWAY_SUCCESS']};
+            --warning: {theme['SUBWAY_WARNING']};
+            --error: {theme['SUBWAY_ERROR']};
+        }}
+        
+        * {{
+            box-sizing: border-box;
+        }}
+        
+        body, .stApp {{
+            background: linear-gradient(135deg, var(--bg) 0%, var(--dark) 100%);
+            color: var(--font);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            min-height: 100vh;
+        }}
+        
+        .stApp {{
+            background-attachment: fixed;
+        }}
+        
+        .block-container {{
+            padding: 2rem 1.5rem 3rem 1.5rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }}
+        
+        .subway-hero-banner {{
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 35%, var(--accent) 70%, var(--pink) 100%);
+            padding: 3rem 2.5rem 2.5rem 2.5rem;
+            border-radius: 24px;
+            margin-bottom: 3rem;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 
+                0 20px 40px rgba(0, 224, 158, 0.15),
+                0 10px 20px rgba(0, 191, 255, 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }}
+        
+        .subway-hero-banner::before {{
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(124, 77, 255, 0.1) 0%, transparent 50%);
+            pointer-events: none;
+        }}
+        
+        .subway-hero-banner h1 {{
+            color: var(--dark);
+            font-weight: 900;
+            font-size: clamp(2.2rem, 4vw, 3.2rem);
+            letter-spacing: -0.02em;
+            margin-bottom: 0.8rem;
+            position: relative;
+            z-index: 1;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            line-height: 1.1;
+        }}
+        
+        .subway-hero-banner .hero-subtitle {{
+            color: var(--dark);
+            font-size: clamp(1rem, 2vw, 1.25rem);
+            font-weight: 500;
+            line-height: 1.6;
+            opacity: 0.9;
+            position: relative;
+            z-index: 1;
+        }}
+        
+        .subway-hero-banner .hero-features {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-top: 1.5rem;
+            position: relative;
+            z-index: 1;
+        }}
+        
+        .hero-feature-tag {{
+            background: rgba(18, 22, 32, 0.8);
+            color: var(--primary);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            border: 1px solid rgba(0, 224, 158, 0.3);
+            backdrop-filter: blur(10px);
+        }}
+        
+        div[data-testid="stRadio"] {{
+            background: var(--card);
+            padding: 1.5rem;
+            border-radius: 16px;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }}
+        
+        div[data-testid="stRadio"] > label {{
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 1rem;
+            display: block;
+        }}
+        
+        div[data-testid="stRadio"] > div {{
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }}
+        
+        /* --- 修改tab切换按钮字体颜色，增强可读性 --- */
+        div[data-testid="stRadio"] label[data-baseweb="radio"] {{
+            background: var(--surface);
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            flex: 1;
+            min-width: 200px;
+            text-align: center;
+            font-weight: 700;
+            color: var(--font); /* 由原来的var(--font-secondary)改为var(--font)以增强对比度 */
+            font-size: 1.08rem;
+            letter-spacing: 0.01em;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.10);
+        }}
+        
+        div[data-testid="stRadio"] label[data-baseweb="radio"]:hover {{
+            border-color: var(--primary);
+            background: linear-gradient(135deg, var(--primary)10, var(--secondary)10);
+            color: var(--font);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 224, 158, 0.15);
+        }}
+        
+        div[data-testid="stRadio"] input:checked + label {{
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: var(--dark);
+            border-color: var(--primary);
+            box-shadow: 0 4px 20px rgba(0, 224, 158, 0.3);
+            font-weight: 900;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }}
 
-def plot_daily_flow(df_plot, line_name=None):
-    fig, ax = plt.subplots(figsize=(10, 4))
-    if line_name is not None:
-        ax.plot(df_plot["日期"], df_plot["预测客流"], marker='o', label=line_name)
-        ax.legend()
-    else:
-        ax.plot(df_plot["日期"], df_plot["预测客流"], marker='o')
-    ax.set_xlabel("日期")
-    ax.set_ylabel("预测客流")
-    ax.set_xticks(df_plot["日期"])
-    ax.set_xticklabels(df_plot["日期"], rotation=45, ha='right')
-    ax.set_title("日预测客流量" + (f" - {line_name}" if line_name else ""))
-    ax.grid(True, linestyle='--', alpha=0.5)
-    st.pyplot(fig)
+        /* --- 加粗并增大“线路小时客流预测”tab字体，提升可读性 --- */
+        div[data-testid="stRadio"] label[data-baseweb="radio"]:has(span:contains('线路小时客流预测')) {{
+            font-size: 1.25rem !important;
+            font-weight: 900 !important;
+            color: var(--primary) !important;
+            text-shadow: 0 2px 8px rgba(0,224,158,0.18) !important;
+            letter-spacing: 0.02em !important;
+        }}
+        /* 针对streamlit 1.32+，用属性选择器匹配tab内容 */
+        div[data-testid="stRadio"] label[data-baseweb="radio"] span:contains('线路小时客流预测') {{
+            font-size: 1.25rem !important;
+            font-weight: 900 !important;
+            color: var(--primary) !important;
+            text-shadow: 0 2px 8px rgba(0,224,158,0.18) !important;
+            letter-spacing: 0.02em !important;
+        }}
+
+        /* 兼容性：如果:has和:contains不生效，则用nth-child(1)高亮第一个tab */
+        div[data-testid="stRadio"] > div > label[data-baseweb="radio"]:nth-child(1) {{
+            font-size: 1.25rem !important;
+            font-weight: 900 !important;
+            color: var(--primary) !important;
+            text-shadow: 0 2px 8px rgba(0,224,158,0.18) !important;
+            letter-spacing: 0.02em !important;
+        }}
+        
+        .stContainer > div, 
+        div[data-testid="column"] > div,
+        .element-container {{
+            background: var(--card);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }}
+        
+        .stButton > button {{
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: var(--dark);
+            font-weight: 700;
+            border: none;
+            border-radius: 12px;
+            padding: 0.75rem 2rem;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 224, 158, 0.3);
+            position: relative;
+            overflow: hidden;
+        }}
+        
+        .stButton > button:hover {{
+            background: linear-gradient(135deg, var(--secondary) 0%, var(--accent) 100%);
+            color: var(--font);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 191, 255, 0.4);
+        }}
+        
+        .stButton > button:active {{
+            transform: translateY(0);
+        }}
+        
+        .stTextInput > div > div > input,
+        .stNumberInput > div > div > input,
+        .stSelectbox > div > div > input {{
+            background: var(--surface);
+            color: var(--font);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 0.75rem 1rem;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }}
+        
+        .stTextInput > div > div > input:focus,
+        .stNumberInput > div > div > input:focus,
+        .stSelectbox > div > div > input:focus {{
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(0, 224, 158, 0.1);
+        }}
+        
+        .stDataFrame {{
+            background: var(--card) !important;
+            border-radius: 12px !important;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1) !important;
+        }}
+        
+        .stDataFrame table {{
+            background: transparent !important;
+        }}
+        
+        .stDataFrame th {{
+            background: linear-gradient(135deg, var(--primary)20, var(--secondary)20) !important;
+            color: var(--font) !important;
+            font-weight: 700 !important;
+            border: none !important;
+            padding: 1rem !important;
+        }}
+        
+        .stDataFrame td {{
+            color: var(--font-secondary) !important;
+            border: none !important;
+            padding: 0.75rem 1rem !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+        }}
+        
+        .stPlotlyChart, .stAltairChart, .stPyplotChart {{
+            background: var(--card) !important;
+            border-radius: 16px !important;
+            padding: 1rem !important;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1) !important;
+            border: 1px solid rgba(255, 255, 255, 0.05) !important;
+        }}
+        
+        section[data-testid="stSidebar"] {{
+            background: linear-gradient(180deg, var(--card) 0%, var(--surface) 100%);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+        }}
+        
+        .stMarkdown h1, .stMarkdown h2, .stMarkdown h3, .stMarkdown h4 {{
+            color: var(--font);
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            margin-bottom: 1rem;
+            line-height: 1.2;
+        }}
+        
+        .stMarkdown h2 {{
+            color: var(--primary);
+            font-size: 1.8rem;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }}
+        
+        .stMarkdown h3 {{
+            color: var(--secondary);
+            font-size: 1.4rem;
+        }}
+        
+        .stSuccess {{
+            background: linear-gradient(135deg, var(--success)15, var(--success)05);
+            border: 1px solid var(--success);
+            border-radius: 12px;
+            color: var(--font);
+        }}
+        
+        .stWarning {{
+            background: linear-gradient(135deg, var(--warning)15, var(--warning)05);
+            border: 1px solid var(--warning);
+            border-radius: 12px;
+            color: var(--font);
+        }}
+        
+        .stError {{
+            background: linear-gradient(135deg, var(--error)15, var(--error)05);
+            border: 1px solid var(--error);
+            border-radius: 12px;
+            color: var(--font);
+        }}
+        
+        ::-webkit-scrollbar {{
+            width: 8px;
+            height: 8px;
+        }}
+        
+        ::-webkit-scrollbar-track {{
+            background: var(--surface);
+            border-radius: 4px;
+        }}
+        
+        ::-webkit-scrollbar-thumb {{
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border-radius: 4px;
+        }}
+        
+        ::-webkit-scrollbar-thumb:hover {{
+            background: linear-gradient(135deg, var(--secondary), var(--accent));
+        }}
+        
+        @keyframes pulse {{
+            0%, 100% {{ opacity: 1; }}
+            50% {{ opacity: 0.5; }}
+        }}
+        
+        .loading {{
+            animation: pulse 2s infinite;
+        }}
+        
+        @media (max-width: 768px) {{
+            .block-container {{
+                padding: 1rem;
+            }}
+            
+            .subway-hero-banner {{
+                padding: 2rem 1.5rem;
+                margin-bottom: 2rem;
+            }}
+            
+            .subway-hero-banner h1 {{
+                font-size: 2rem;
+            }}
+            
+            .hero-features {{
+                flex-direction: column;
+            }}
+            
+            div[data-testid="stRadio"] > div {{
+                flex-direction: column;
+            }}
+            
+            div[data-testid="stRadio"] label[data-baseweb="radio"] {{
+                min-width: unset;
+            }}
+        }}
+        
+        * {{
+            -webkit-transform: translateZ(0);
+            transform: translateZ(0);
+        }}
+        
+        .stApp {{
+            will-change: transform;
+            backface-visibility: hidden;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 def main():
     """
     Streamlit 应用主入口，提供小时和日客流预测界面
     """
-    st.set_page_config(page_title="长沙地铁客流预测算法平台", layout="wide")
-    st.title("长沙地铁客流预测算法平台")
-    st.markdown("本平台支持线路小时客流预测（LSTM/Prophet）与线路日客流预测（KNN/Prophet），可选择预测参数、训练模型、预测并可视化结果。")
+    st.set_page_config(
+        page_title="客流模型算法测试平台", 
+        layout="wide", 
+        page_icon="🚇",
+        initial_sidebar_state="collapsed"
+    )
 
-    config = load_yaml_config()
-    config_daily = load_yaml_config("model_config_daily.yaml", default_daily=True)
+    # 只保留深色主题
+    theme = DARK_THEME
 
-    tab1, tab2 = st.tabs(["线路小时客流预测", "线路日客流预测"])
+    # 应用优化样式
+    subway_optimized_style(theme)
 
-    with tab1:
-        st.header("线路小时客流预测（LSTM/Prophet）")
+    # Hero横幅
+    st.markdown(
+        f"""
+        <div class="subway-hero-banner">
+            <h1>🚇 客流模型算法测试平台</h1>
+            <div class="hero-subtitle">
+                基于机器学习与深度学习技术的智能客流预测系统，支持多算法对比分析，实现精准预测与可视化展示
+            </div>
+            <div class="hero-features">
+                <div class="hero-feature-tag">📊 多算法支持</div>
+                <div class="hero-feature-tag">🎯 高精度预测</div>
+                <div class="hero-feature-tag">📈 实时可视化</div>
+                <div class="hero-feature-tag">⚡ 智能分析</div>
+                <div class="hero-feature-tag">🔧 参数调优</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-        # 选择训练模型类型
-        train_model_type = st.selectbox("训练模型类型", options=["lstm", "prophet"], 
-                                        index=0 if config.get("default_algorithm", "lstm") == "lstm" else 1, key="hour_train_model_type")
-        today = datetime.now()
-        train_date = st.date_input("训练数据截止日期", value=today, key="hour_train_date")
-        if isinstance(train_date, datetime):
-            train_date_str = train_date.strftime("%Y%m%d")
-        else:
-            train_date_str = train_date.strftime("%Y%m%d")
-        retrain = st.checkbox("强制重新训练模型", value=True, key="hour_retrain")
+    # 将两个下拉框放在同一行
+    col1, col2 = st.columns([1, 1], gap="medium")
 
-        with st.expander("高级训练参数设置", expanded=False):
-            lookback_days = st.number_input("lookback_days", min_value=1, max_value=30, 
-                                           value=config.get("train_params", {}).get("lookback_days", 7), key="hour_lookback_days")
-            hidden_size = st.number_input("hidden_size", min_value=10, max_value=200, 
-                                         value=config.get("train_params", {}).get("hidden_size", 50), key="hour_hidden_size")
-            num_layers = st.number_input("num_layers", min_value=1, max_value=5, 
-                                        value=config.get("train_params", {}).get("num_layers", 2), key="hour_num_layers")
-            dropout = st.slider("dropout", min_value=0.0, max_value=0.8, 
-                               value=float(config.get("train_params", {}).get("dropout", 0.2)), key="hour_dropout")
-            batch_size = st.number_input("batch_size", min_value=8, max_value=256, 
-                                        value=config.get("train_params", {}).get("batch_size", 32), key="hour_batch_size")
-            epochs = st.number_input("epochs", min_value=10, max_value=500, 
-                                    value=config.get("train_params", {}).get("epochs", 100), key="hour_epochs")
-            patience = st.number_input("patience", min_value=1, max_value=50, 
-                                      value=config.get("train_params", {}).get("patience", 10), key="hour_patience")
-            learning_rate = st.number_input("learning_rate", min_value=0.0001, max_value=0.1, 
-                                          value=float(config.get("train_params", {}).get("learning_rate", 0.001)), 
-                                          step=0.0001, format="%.4f", key="hour_lr")
-            config["train_params"] = {
-                "lookback_days": lookback_days,
-                "hidden_size": hidden_size,
-                "num_layers": num_layers,
-                "dropout": dropout,
-                "batch_size": batch_size,
-                "epochs": epochs,
-                "patience": patience,
-                "learning_rate": learning_rate
-            }
-            save_yaml_config(config)
+    with col1:
+        # 定义 FLOW_TYPES 下拉选项
+        FLOW_TYPES = {
+            "xianwangxianlu": "线路线网",
+            "duanmian": "断面",
+            "chezhan": "车站"
+        }
+        # 选择客流类型
+        flow_type_label = st.selectbox(
+            "🚇 选择客流类型",
+            options=list(FLOW_TYPES.values()),
+            index=0,
+            key="main_flow_type_select"
+        )
+        # 反查 key
+        flow_type_key = [k for k, v in FLOW_TYPES.items() if v == flow_type_label][0]
 
-        if st.button("开始小时模型训练", key="run_hour_train"):
-            with st.spinner("正在训练小时模型..."):
-                # 结构: models/hour/日期/算法类型
-                model_save_dir = os.path.join("models", "hour", train_date_str, train_model_type)
-                os.makedirs(model_save_dir, exist_ok=True)
-                result = predict_and_plot_timeseries_flow(
-                    file_path=None,
-                    predict_date=train_date_str,
-                    algorithm=train_model_type,
-                    retrain=retrain,
-                    save_path="timeseries_predict_hourly.png",
-                    mode="train",
-                    config=config,
-                    model_version=None,
-                    model_save_dir=model_save_dir
-                )
-            if isinstance(result, dict) and "error" in result:
-                st.error(result["error"])
-            else:
-                st.success("小时模型训练完成！")
-                st.info("请在下方推理模块选择模型版本进行预测。")
+    with col2:
+        # 预测客流类型下拉框
+        FLOW_METRIC_OPTIONS = [
+            ("F_PKLCOUNT", "客运量"),
+            ("F_ENTRANCE", "进站量"),
+            ("F_EXIT", "出站量"),
+            ("F_TRANSFER", "换乘量"),
+            ("F_BOARD_ALIGHT", "乘降量")
+        ]
+        flow_metric_labels = [label for _, label in FLOW_METRIC_OPTIONS]
+        selected_flow_metric_label = st.selectbox(
+            "🚦 选择预测客流范围",
+            options=flow_metric_labels,
+            index=0,
+            key="main_flow_metric_select",
+            help="选择要预测的客流量类型"
+        )
+        selected_flow_metric_key = [k for k, v in FLOW_METRIC_OPTIONS if v == selected_flow_metric_label][0]
 
-        st.markdown("---")
-        st.subheader("小时客流推理预测")
-        # 选择推理模型日期版本
-        hour_model_root = os.path.join("models", "hour")
-        hour_versions = get_model_versions(hour_model_root)
-        if hour_versions:
-            hour_version = st.selectbox("选择模型日期版本", options=hour_versions, key="hour_model_version")
-            # 选择推理算法类型（该日期下有哪些算法模型文件夹）
-            algo_dir = os.path.join(hour_model_root, hour_version)
-            available_algos = [d for d in os.listdir(algo_dir) if os.path.isdir(os.path.join(algo_dir, d))]
-            # 只保留支持的算法
-            available_algos = [a for a in available_algos if a in ["lstm", "prophet"]]
-            if available_algos:
-                predict_model_type = st.selectbox("推理模型类型", options=available_algos, key="hour_predict_model_type")
-                model_dir = os.path.join(hour_model_root, hour_version, predict_model_type)
-            else:
-                model_dir = None
-                predict_model_type = None
-                st.warning("该日期下未找到可用的小时算法模型，请先训练模型。")
-        else:
-            hour_version = None
-            model_dir = None
-            predict_model_type = None
-            st.warning("未找到可用的小时模型版本，请先训练模型。")
+    # tab切换，动态显示FLOW_TYPES 这个也需要完整占一行
+    # 横向铺满整个屏幕的 tab/radio，使用 st.columns 实现
+    col_radio = st.columns([1], gap="medium")[0]
+    with col_radio:
+        tab_choice = st.radio(
+            "🎯 选择预测模式",
+            [
+                f"📅 {flow_type_label}日客流预测",
+                f"🕒 {flow_type_label}小时客流预测",
+            ],
+            horizontal=True,
+            index=0,
+            key="main_tab_radio",
+            # help="选择您需要进行预测的时间粒度"
+        )
 
-        predict_date = st.date_input("预测日期", value=today, key="hour_predict_date")
-        if isinstance(predict_date, datetime):
-            predict_date_str = predict_date.strftime("%Y%m%d")
-        else:
-            predict_date_str = predict_date.strftime("%Y%m%d")
+    # st.markdown("---")
 
-        if st.button("开始小时推理预测", key="run_hour_predict"):
-            if not hour_version or not model_dir or not os.path.exists(model_dir) or not predict_model_type:
-                st.error("请先训练并选择模型版本和算法类型。")
-            else:
-                with st.spinner("正在进行小时推理预测..."):
-                    result = predict_and_plot_timeseries_flow(
-                        file_path=None,
-                        predict_date=predict_date_str,
-                        algorithm=predict_model_type,
-                        retrain=False,
-                        save_path="timeseries_predict_hourly.png",
-                        mode="predict",
-                        config=config,
-                        model_version=None,  # 版本由目录结构决定
-                        model_save_dir=model_dir
-                    )
-                if isinstance(result, dict) and "error" in result:
-                    st.error(result["error"])
-                else:
-                    st.success("小时推理预测完成！")
-                    info = result if isinstance(result, dict) else {}
-                    st.subheader("小时预测结果")
-                    if info.get("error"):
-                        st.warning(f"预测错误: {info['error']}")
-                    else:
-                        # 分线路展示
-                        hourly_flow = info.get("predict_hourly_flow", {})
-                        if isinstance(hourly_flow, dict) and all(isinstance(v, dict) for v in hourly_flow.values()):
-                            for line_name, line_hourly in hourly_flow.items():
-                                # 修正：小时key可能为字符串"00"~"23"或int 0~23，统一处理
-                                # 先将所有key转为字符串并补零
-                                hour_keys = [str(h).zfill(2) for h in line_hourly.keys()]
-                                # 统一小时排序
-                                hours = sorted([int(h) for h in hour_keys])
-                                flows = []
-                                for h in hours:
-                                    # 优先取"hh"格式
-                                    v = line_hourly.get(str(h).zfill(2))
-                                    if v is None:
-                                        v = line_hourly.get(str(h))
-                                    if v is None:
-                                        v = 0
-                                    flows.append(v)
-                                df_plot = pd.DataFrame({
-                                    "小时": hours,
-                                    "预测客流": flows
-                                })
-                                st.markdown(f"**线路：{line_name}**")
-                                plot_hourly_flow(df_plot, line_name=line_name)
-                                st.write(f"预测日期: {info.get('predict_date', predict_date_str)}")
-                                st.dataframe(df_plot)
-                        else:
-                            # 单线路或整体结构
-                            hour_keys = [str(h).zfill(2) for h in hourly_flow.keys()]
-                            hours = sorted([int(h) for h in hour_keys])
-                            flows = []
-                            for h in hours:
-                                v = hourly_flow.get(str(h).zfill(2))
-                                if v is None:
-                                    v = hourly_flow.get(str(h))
-                                if v is None:
-                                    v = 0
-                                flows.append(v)
-                            df_plot = pd.DataFrame({
-                                "小时": hours,
-                                "预测客流": flows
-                            })
-                            plot_hourly_flow(df_plot)
-                            st.write(f"预测日期: {info.get('predict_date', predict_date_str)}")
-                            st.dataframe(df_plot)
-                    if os.path.exists("timeseries_predict_hourly.png"):
-                        st.image("timeseries_predict_hourly.png", caption="小时预测结果可视化", use_container_width=True)
+    # 根据选择加载对应模块，并增强字体颜色对比度
+    BRIGHT_FONT_COLOR = "#FFFFFF"  # 纯白色，确保字体鲜明
 
-    with tab2:
-        st.header("线路日客流预测（KNN/Prophet）")
-        # 支持KNN和Prophet两种日预测算法
-        daily_algos = ["knn", "prophet"]
-        train_daily_algo = st.selectbox("训练日模型算法类型", options=daily_algos, key="daily_train_algo")
-        n_neighbors = None
-        if train_daily_algo == "knn":
-            n_neighbors = st.number_input("KNN邻居数(n_neighbors)", min_value=1, max_value=30, 
-                                          value=config_daily.get("train_params", {}).get("n_neighbors", 5), key="daily_n_neighbors")
-            config_daily["train_params"]["n_neighbors"] = n_neighbors
-        save_yaml_config(config_daily, "model_config_daily.yaml")
-        train_start_date = st.date_input("训练数据截止日期（日）", value=datetime.now(), key="daily_train_date")
-        if isinstance(train_start_date, datetime):
-            train_start_date_str = train_start_date.strftime("%Y%m%d")
-        else:
-            train_start_date_str = train_start_date.strftime("%Y%m%d")
-        retrain_daily = st.checkbox("强制重新训练日模型", value=True, key="daily_retrain")
+    # 防止 tab_choice 为 None 时出现 AttributeError
+    if tab_choice is not None:
+        if isinstance(tab_choice, str) and tab_choice.startswith("🕒"):
+            from streamlit_hourly import hourly_tab
+            hourly_tab(
+                SUBWAY_GREEN=theme["SUBWAY_PRIMARY"],
+                SUBWAY_ACCENT=theme["SUBWAY_SECONDARY"],
+                SUBWAY_CARD=theme["SUBWAY_CARD"],
+                SUBWAY_FONT=BRIGHT_FONT_COLOR,  # 使用更鲜明的字体颜色
+                SUBWAY_BG=theme["SUBWAY_BG"],
+                flow_type=flow_type_key,
+                metric_type=selected_flow_metric_key
+            )
+        elif isinstance(tab_choice, str) and tab_choice.startswith("📅"):
+            from streamlit_daily import daily_tab
+            daily_tab(
+                SUBWAY_GREEN=theme["SUBWAY_PRIMARY"],
+                SUBWAY_ACCENT=theme["SUBWAY_SECONDARY"],
+                SUBWAY_CARD=theme["SUBWAY_CARD"],
+                SUBWAY_FONT=BRIGHT_FONT_COLOR,  # 使用更鲜明的字体颜色
+                SUBWAY_BG=theme["SUBWAY_BG"],
+                flow_type=flow_type_key,
+                metric_type=selected_flow_metric_key
+            )
+    else:
+        st.warning("未检测到有效的预测模式选项，请重新选择。")
 
-        if st.button("开始日模型训练", key="run_daily_train"):
-            with st.spinner("正在训练日模型..."):
-                # 结构: models/daily/日期/算法类型
-                model_save_dir_daily = os.path.join("models", "daily", train_start_date_str, train_daily_algo)
-                os.makedirs(model_save_dir_daily, exist_ok=True)
-                result = predict_and_plot_timeseries_flow_daily(
-                    file_path=None,
-                    predict_start_date=train_start_date_str,
-                    algorithm=train_daily_algo,
-                    retrain=retrain_daily,
-                    save_path="timeseries_predict_daily.png",
-                    mode="train",
-                    days=15,
-                    config=config_daily,
-                    model_version=None,
-                    model_save_dir=model_save_dir_daily
-                )
-            if isinstance(result, dict) and "error" in result:
-                st.error(result["error"])
-            else:
-                st.success("日模型训练完成！")
-                st.info("请在下方推理模块选择模型版本和算法类型进行预测。")
+    # 页脚
+    st.markdown("---")
+    st.markdown(
+        """
+        <div style="text-align: center; color: var(--font-secondary); font-size: 0.9rem; padding: 2rem 0;">
+            <p>🚇 客流模型算法测试平台 | 科技赋能智慧交通 | Powered by Machine Learning</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-        st.markdown("---")
-        st.subheader("日客流推理预测")
-        # 选择推理模型日期版本
-        daily_model_root = os.path.join("models", "daily")
-        daily_versions = get_model_versions(daily_model_root)
-        if daily_versions:
-            daily_version = st.selectbox("选择日模型日期版本", options=daily_versions, key="daily_model_version")
-            # 选择推理算法类型（该日期下有哪些算法模型文件夹）
-            algo_dir_daily = os.path.join(daily_model_root, daily_version)
-            available_daily_algos = [d for d in os.listdir(algo_dir_daily) if os.path.isdir(os.path.join(algo_dir_daily, d))]
-            # 只保留支持的算法
-            available_daily_algos = [a for a in available_daily_algos if a in daily_algos]
-            if available_daily_algos:
-                predict_daily_algo = st.selectbox("推理模型类型", options=available_daily_algos, key="daily_predict_model_type")
-                model_dir_daily = os.path.join(daily_model_root, daily_version, predict_daily_algo)
-            else:
-                model_dir_daily = None
-                predict_daily_algo = None
-                st.warning("该日期下未找到可用的日算法模型，请先训练模型。")
-        else:
-            daily_version = None
-            model_dir_daily = None
-            predict_daily_algo = None
-            st.warning("未找到可用的日模型版本，请先训练模型。")
-
-        predict_start_date = st.date_input("预测起始日期", value=datetime.now(), key="daily_predict_date")
-        if isinstance(predict_start_date, datetime):
-            predict_start_date_str = predict_start_date.strftime("%Y%m%d")
-        else:
-            predict_start_date_str = predict_start_date.strftime("%Y%m%d")
-        days = st.number_input("预测天数", min_value=1, max_value=30, value=15, key="daily_days")
-
-        if st.button("开始日推理预测", key="run_daily_predict"):
-            if not daily_version or not model_dir_daily or not os.path.exists(model_dir_daily) or not predict_daily_algo:
-                st.error("请先训练并选择模型版本和算法类型。")
-            else:
-                with st.spinner("正在进行日推理预测..."):
-                    result = predict_and_plot_timeseries_flow_daily(
-                        file_path=None,
-                        predict_start_date=predict_start_date_str,
-                        algorithm=predict_daily_algo,
-                        retrain=False,
-                        save_path="timeseries_predict_daily.png",
-                        mode="predict",
-                        days=days,
-                        config=config_daily,
-                        model_version=None,  # 版本由目录结构决定
-                        model_save_dir=model_dir_daily
-                    )
-                if isinstance(result, dict) and "error" in result:
-                    st.error(result["error"])
-                else:
-                    st.success("日推理预测完成！")
-                    info = result if isinstance(result, dict) else {}
-                    st.subheader("日预测结果")
-                    if info.get("error"):
-                        st.warning(f"预测错误: {info['error']}")
-                    else:
-                        # 分线路展示
-                        daily_flow = info.get("predict_daily_flow", {})
-                        if isinstance(daily_flow, dict) and all(isinstance(v, dict) for v in daily_flow.values()):
-                            for line_name, line_daily in daily_flow.items():
-                                # 修正：日期key为字符串，flows需为数值型
-                                dates = sorted(line_daily.keys())
-                                flows = []
-                                for date in dates:
-                                    v = line_daily.get(date)
-                                    if v is None:
-                                        v = 0
-                                    flows.append(v)
-                                df_plot = pd.DataFrame({
-                                    "日期": dates,
-                                    "预测客流": flows
-                                })
-                                st.markdown(f"**线路：{line_name}**")
-                                plot_daily_flow(df_plot, line_name=line_name)
-                                st.write(f"预测起始日期: {info.get('predict_start_date', predict_start_date_str)}")
-                                st.dataframe(df_plot)
-                        else:
-                            # 单线路或整体结构
-                            dates = sorted(daily_flow.keys())
-                            flows = []
-                            for date in dates:
-                                v = daily_flow.get(date)
-                                if v is None:
-                                    v = 0
-                                flows.append(v)
-                            df_plot = pd.DataFrame({
-                                "日期": dates,
-                                "预测客流": flows
-                            })
-                            plot_daily_flow(df_plot)
-                            st.write(f"预测起始日期: {info.get('predict_start_date', predict_start_date_str)}")
-                            st.dataframe(df_plot)
-                    if os.path.exists("timeseries_predict_daily.png"):
-                        st.image("timeseries_predict_daily.png", caption="日预测结果可视化", use_container_width=True)
+if __name__ == "__main__":
+    main()
