@@ -1,0 +1,8 @@
+streamlit
+pyyaml
+pymssql
+scikit-learn
+matplotlib
+uvicorn
+fastapi
+
