@@ -2,7 +2,7 @@
   "algorithm": "knn",
   "mse": 0.0,
   "mae": 0.0,
-  "train_date": "20251023",
+  "train_date": "20251024",
   "line_no": "83",
   "version": "20251023",
   "factors": [
