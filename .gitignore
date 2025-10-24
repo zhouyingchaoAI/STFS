@@ -1,0 +1,101 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Database
+*.db
+*.sqlite3
+
+# Logs
+*.log
+logs/*.log
+
+# Model Files (大型文件不提交)
+models/**/*.pkl
+models/**/*.pth
+models/**/*.h5
+models/**/*.joblib
+
+# Keep model directory structure
+!models/.gitkeep
+!models/**/.gitkeep
+
+# Plots (生成的图片不提交)
+plots/*.png
+plots/*.jpg
+
+# Keep plots directory
+!plots/.gitkeep
+
+# Config (敏感配置不提交)
+db_config.yaml
+*_secret.yaml
+
+# Keep example configs
+!db_config.example.yaml
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~.nib
+*.tar
+*.tar.gz
+*.zip
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.c
+build/temp.*
+build/lib.*
+
+# Coverage
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+
+# Testing
+.pytest_cache/
+.tox/
+
+# Documentation
+docs/_build/
+

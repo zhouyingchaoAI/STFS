@@ -1,0 +1,51 @@
+host: 127.0.0.1
+port: 4566
+predict_daily_metric_types:
+- F_PKLCOUNT
+- F_ENTRANCE
+- F_EXIT
+- F_TRANSFER
+predict_hourly_metric_types:
+- F_PKLCOUNT
+- F_ENTRANCE
+- F_EXIT
+- F_TRANSFER
+predict_schedule_times:
+- 08:00
+train_algorithm: knn
+train_daily_metric_types:
+- F_PKLCOUNT
+- F_ENTRANCE
+- F_EXIT
+- F_TRANSFER
+train_hourly_metric_types:
+- F_PKLCOUNT
+- F_ENTRANCE
+- F_EXIT
+- F_TRANSFER
+train_schedule_times:
+- 07:15
+xianwangxianlu_predict_daily_metric_types:
+- F_PKLCOUNT
+- F_ENTRANCE
+- F_EXIT
+- F_TRANSFER
+- F_BOARD_ALIGHT
+xianwangxianlu_predict_hourly_metric_types:
+- F_PKLCOUNT
+- F_ENTRANCE
+- F_EXIT
+- F_TRANSFER
+- F_BOARD_ALIGHT
+xianwangxianlu_train_daily_metric_types:
+- F_PKLCOUNT
+- F_ENTRANCE
+- F_EXIT
+- F_TRANSFER
+- F_BOARD_ALIGHT
+xianwangxianlu_train_hourly_metric_types:
+- F_PKLCOUNT
+- F_ENTRANCE
+- F_EXIT
+- F_TRANSFER
+- F_BOARD_ALIGHT

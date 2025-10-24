@@ -1,0 +1,13 @@
+{
+    "default_weights": {
+      "knn": 0.6,
+      "last_year_offset": 0.4
+    },
+    "line_weights": {
+      "31": {
+        "knn": 0.1,
+        "last_year_offset": 0.9,
+        "comment": "支线，波动大"
+      }
+    }
+  }

@@ -1,0 +1,55 @@
+host: 10.1.6.230
+port: 8900
+predict_daily_metric_types:
+- F_PKLCOUNT
+- F_ENTRANCE
+- F_EXIT
+- F_TRANSFER
+- F_BOARD_ALIGHT
+predict_hourly_metric_types:
+- F_PKLCOUNT
+- F_ENTRANCE
+- F_EXIT
+- F_TRANSFER
+- F_BOARD_ALIGHT
+predict_schedule_times:
+- 06:59
+train_algorithm: knn
+train_daily_metric_types:
+- F_PKLCOUNT
+- F_ENTRANCE
+- F_EXIT
+- F_TRANSFER
+- F_BOARD_ALIGHT
+train_hourly_metric_types:
+- F_PKLCOUNT
+- F_ENTRANCE
+- F_EXIT
+- F_TRANSFER
+- F_BOARD_ALIGHT
+train_schedule_times:
+- 05:54
+xianwangxianlu_predict_daily_metric_types:
+- F_PKLCOUNT
+- F_ENTRANCE
+- F_EXIT
+- F_TRANSFER
+- F_BOARD_ALIGHT
+xianwangxianlu_predict_hourly_metric_types:
+- F_PKLCOUNT
+- F_ENTRANCE
+- F_EXIT
+- F_TRANSFER
+- F_BOARD_ALIGHT
+xianwangxianlu_train_daily_metric_types:
+- F_PKLCOUNT
+- F_ENTRANCE
+- F_EXIT
+- F_TRANSFER
+- F_BOARD_ALIGHT
+xianwangxianlu_train_hourly_metric_types:
+- F_PKLCOUNT
+- F_ENTRANCE
+- F_EXIT
+- F_TRANSFER
+- F_BOARD_ALIGHT

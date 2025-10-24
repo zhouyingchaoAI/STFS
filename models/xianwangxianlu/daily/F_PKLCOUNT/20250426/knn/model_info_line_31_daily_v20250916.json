@@ -1,0 +1,34 @@
+{
+  "algorithm": "knn",
+  "mse": 1915449.853448427,
+  "mae": 353.7678062678061,
+  "train_date": "20251009",
+  "line_no": "31",
+  "version": "20250916",
+  "factors": [
+    "F_WEEK",
+    "F_HOLIDAYTYPE",
+    "F_HOLIDAYDAYS",
+    "F_HOLIDAYWHICHDAY",
+    "F_DAYOFWEEK",
+    "WEATHER_TYPE",
+    "F_YEAR"
+  ],
+  "config": {
+    "current_version": "20250916",
+    "default_algorithm": "knn",
+    "model_root_dir": "models/daily",
+    "train_params": {
+      "lookback_days": 7,
+      "epochs": 100,
+      "patience": 10,
+      "learning_rate": 0.001,
+      "batch_size": 32,
+      "n_neighbors": 5
+    }
+  },
+  "algorithm_weights": {
+    "knn": 0.8,
+    "last_year_offset": 0.2
+  }
+}

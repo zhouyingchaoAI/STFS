@@ -1,0 +1,1024 @@
+ * Serving Flask app 'web_app'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:4566
+ * Running on http://172.17.0.12:4566
+[33mPress CTRL+C to quit[0m
+10.1.33.138 - - [24/Oct/2025 01:12:04] "GET / HTTP/1.1" 200 -
+/STFS_V1/script/人工算法/yunying.py:186: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+10.1.33.138 - - [24/Oct/2025 01:12:05] "POST /check_data_availability HTTP/1.1" 200 -
+10.1.33.138 - - [24/Oct/2025 01:12:05] "POST /check_station_data_availability HTTP/1.1" 200 -
+10.1.33.138 - - [24/Oct/2025 01:12:06] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+10.1.33.138 - - [24/Oct/2025 01:12:15] "POST /calculate_growth HTTP/1.1" 200 -
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+10.1.33.138 - - [24/Oct/2025 01:13:01] "POST /check_data_availability HTTP/1.1" 200 -
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+10.1.33.138 - - [24/Oct/2025 01:13:10] "POST /check_data_availability HTTP/1.1" 200 -
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+10.1.33.138 - - [24/Oct/2025 01:13:14] "POST /check_data_availability HTTP/1.1" 200 -
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+10.1.33.138 - - [24/Oct/2025 01:13:15] "POST /check_data_availability HTTP/1.1" 200 -
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+10.1.33.138 - - [24/Oct/2025 01:13:21] "POST /predict_flow HTTP/1.1" 200 -
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+10.1.33.138 - - [24/Oct/2025 01:19:52] "POST /predict_flow HTTP/1.1" 200 -
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+应用车站过滤：['橘子洲', '五一广场', '碧沙湖']
+完整SQL:
+
+        SELECT 
+            S.ID,
+            REPLACE(S.SQUAD_DATE, '-', '') AS F_DATE,
+            S.STATION_ID AS F_LINENO,
+            S.STATION_NAME AS F_LINENAME,
+            S.PASSENGER_NUM AS F_KLCOUNT,
+            C.F_DATEFEATURES,
+            C.F_ISHOLIDAY,
+            C.F_ISNONGLI,
+            C.F_ISYANGLI,
+            C.F_NEXTDAY,
+            C.F_HOLIDAYTHDAY,
+            C.IS_FIRST,
+            CC.F_YEAR,
+            CC.F_DAYOFWEEK,
+            CC.F_WEEK,
+            CC.F_HOLIDAYTYPE,
+            CC.F_HOLIDAYDAYS,
+            CC.F_HOLIDAYWHICHDAY,
+            CC.COVID19,
+            CC.F_WEATHER,
+            W.F_TQQK AS WEATHER_TYPE
+        FROM 
+            [StationFlowPredict].[dbo].[STATION_FLOW_HISTORY] AS S
+        LEFT JOIN 
+            master.dbo.LSTM_COMMON_HOLIDAYFEATURE AS C
+            ON REPLACE(S.SQUAD_DATE, '-', '') = C.F_DATE
+        LEFT JOIN 
+            master.dbo.CalendarHistory AS CC
+            ON REPLACE(S.SQUAD_DATE, '-', '') = CC.F_DATE
+        LEFT JOIN
+            master.dbo.WeatherHistory AS W
+            ON REPLACE(S.SQUAD_DATE, '-', '') = W.F_DATE
+        WHERE 
+            REPLACE(S.SQUAD_DATE, '-', '') >= '20250930'
+            AND REPLACE(S.SQUAD_DATE, '-', '') <= '20251004'
+            AND S.STATION_NAME IN (N'橘子洲', N'五一广场', N'碧沙湖')
+        ORDER BY 
+            REPLACE(S.SQUAD_DATE, '-', ''), S.STATION_ID
+        
+车站数据查询完成：0行
+⚠️ 车站查询结果为空
+
+============================================================
+开始预测线路客流
+指标类型: F_PKLCOUNT (客流量)
+预测日期: 20250430 - 20250505
+参考历史: 前2年
+自定义配置: 否
+============================================================
+
+基期数据查询成功：310行
+基期日均计算完成，共10条线路数据
+base_avg 类型: <class 'pandas.core.frame.DataFrame'>, 形状: (10, 3), 列: ['F_LINENO', 'F_LINENAME', '基期日均']
+base_avg 前几行:
+   F_LINENO F_LINENAME          基期日均
+0         0         线网  2.228510e+06
+1         1        1号线  3.966289e+05
+2         2        2号线  5.098189e+05
+3         3        3号线  3.250200e+05
+4         4        4号线  3.579985e+05
+
+===== 处理第1年历史数据：2024年 =====
+✓ 2024年：参考期60行
+
+===== 处理第2年历史数据：2023年 =====
+✓ 2023年：参考期54行
+✓ 合并完成：共114行
+
+===== 开始计算预测 =====
+标记完成，开始计算每天的最优增长率...
+
+✓ 预测计算完成：共60条预测记录
+
+===== 查询实际数据 =====
+日期范围：20250430 - 20250505
+查询结果：60行
+实际数据的线路：[ 0  1  2  3  4  5  6 31 60 83]
+实际数据的日期：['20250430', '20250501', '20250502', '20250503', '20250504', '20250505']
+
+预测数据示例（前3条）：
+  预测 1: 线路=0 (<class 'int'>), 日期=20250430 (<class 'str'>)
+  预测 2: 线路=0 (<class 'int'>), 日期=20250501 (<class 'str'>)
+  预测 3: 线路=0 (<class 'int'>), 日期=20250502 (<class 'str'>)
+
+实际数据示例（前3条）：
+  实际 1: 线路=0 (<class 'numpy.int64'>), 日期=20250430 (<class 'str'>)
+  实际 2: 线路=1 (<class 'numpy.int64'>), 日期=20250430 (<class 'str'>)
+  实际 3: 线路=2 (<class 'numpy.int64'>), 日期=20250430 (<class 'str'>)
+
+开始匹配预测值和实际值...
+  匹配 1: 线路0 日期20250430 -> 找到1行
+  匹配成功 - 线路0 20250430: 预测=3380872, 实际=2947596, 准确率=85.3%
+  匹配 2: 线路0 日期20250501 -> 找到1行
+  匹配成功 - 线路0 20250501: 预测=3212174, 实际=3128839, 准确率=97.34%
+  匹配 3: 线路0 日期20250502 -> 找到1行
+  匹配成功 - 线路0 20250502: 预测=2894166, 实际=3155998, 准确率=91.7%
+
+✓ 匹配完成：60/60 条记录有实际数据
+✓ 有准确率的记录：60/60
+
+============================================================
+准备返回结果：has_actual = True
+predictions 总数 = 60
+第一条记录示例：{'线路编号': 0, '线路名称': '线网', '预测日期': '20250430', '第几天': 1, '基期日均': 2228510, '最优增长率': 51.71, '最优来源年份': 2023, '预测客流': 3380872, '实际客流': 2947596, '准确率': 85.3, '误差': 433276}
+============================================================
+
+
+============================================================
+预测完成！返回60条记录
+============================================================
+
+
+============================================================
+开始预测线路客流
+指标类型: F_PKLCOUNT (客流量)
+预测日期: 20250430 - 20250505
+参考历史: 前3年
+自定义配置: 否
+============================================================
+
+基期数据查询成功：310行
+基期日均计算完成，共10条线路数据
+base_avg 类型: <class 'pandas.core.frame.DataFrame'>, 形状: (10, 3), 列: ['F_LINENO', 'F_LINENAME', '基期日均']
+base_avg 前几行:
+   F_LINENO F_LINENAME          基期日均
+0         0         线网  2.228510e+06
+1         1        1号线  3.966289e+05
+2         2        2号线  5.098189e+05
+3         3        3号线  3.250200e+05
+4         4        4号线  3.579985e+05
+
+===== 处理第1年历史数据：2024年 =====
+✓ 2024年：参考期60行
+
+===== 处理第2年历史数据：2023年 =====
+✓ 2023年：参考期54行
+
+===== 处理第3年历史数据：2022年 =====
+✓ 2022年：参考期54行
+✓ 合并完成：共168行
+
+===== 开始计算预测 =====
+标记完成，开始计算每天的最优增长率...
+
+✓ 预测计算完成：共60条预测记录
+
+===== 查询实际数据 =====
+日期范围：20250430 - 20250505
+查询结果：60行
+实际数据的线路：[ 0  1  2  3  4  5  6 31 60 83]
+实际数据的日期：['20250430', '20250501', '20250502', '20250503', '20250504', '20250505']
+
+预测数据示例（前3条）：
+  预测 1: 线路=0 (<class 'int'>), 日期=20250430 (<class 'str'>)
+  预测 2: 线路=0 (<class 'int'>), 日期=20250501 (<class 'str'>)
+  预测 3: 线路=0 (<class 'int'>), 日期=20250502 (<class 'str'>)
+
+实际数据示例（前3条）：
+  实际 1: 线路=0 (<class 'numpy.int64'>), 日期=20250430 (<class 'str'>)
+  实际 2: 线路=1 (<class 'numpy.int64'>), 日期=20250430 (<class 'str'>)
+  实际 3: 线路=2 (<class 'numpy.int64'>), 日期=20250430 (<class 'str'>)
+
+开始匹配预测值和实际值...
+  匹配 1: 线路0 日期20250430 -> 找到1行
+  匹配成功 - 线路0 20250430: 预测=3380872, 实际=2947596, 准确率=85.3%
+  匹配 2: 线路0 日期20250501 -> 找到1行
+  匹配成功 - 线路0 20250501: 预测=3212174, 实际=3128839, 准确率=97.34%
+  匹配 3: 线路0 日期20250502 -> 找到1行
+  匹配成功 - 线路0 20250502: 预测=2894166, 实际=3155998, 准确率=91.7%
+
+✓ 匹配完成：60/60 条记录有实际数据
+✓ 有准确率的记录：60/60
+
+============================================================
+准备返回结果：has_actual = True
+predictions 总数 = 60
+第一条记录示例：{'线路编号': 0, '线路名称': '线网', '预测日期': '20250430', '第几天': 1, '基期日均': 2228510, '最优增长率': 51.71, '最优来源年份': 2023, '预测客流': 3380872, '实际客流': 2947596, '准确率': 85.3, '误差': 433276}
+============================================================
+
+
+============================================================
+预测完成！返回60条记录
+============================================================
+
+
+============================================================
+开始预测线路客流
+指标类型: F_PKLCOUNT (客流量)
+预测日期: 20250430 - 20250505
+参考历史: 前4年
+自定义配置: 否
+============================================================
+
+基期数据查询成功：310行
+基期日均计算完成，共10条线路数据
+base_avg 类型: <class 'pandas.core.frame.DataFrame'>, 形状: (10, 3), 列: ['F_LINENO', 'F_LINENAME', '基期日均']
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+10.1.33.138 - - [24/Oct/2025 01:20:04] "POST /predict_flow HTTP/1.1" 200 -
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+10.1.33.138 - - [24/Oct/2025 01:22:51] "POST /predict_flow HTTP/1.1" 200 -
+/STFS_V1/script/人工算法/yunying.py:186: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+10.1.33.138 - - [24/Oct/2025 01:30:55] "POST /check_station_data_availability HTTP/1.1" 200 -
+base_avg 前几行:
+   F_LINENO F_LINENAME          基期日均
+0         0         线网  2.228510e+06
+1         1        1号线  3.966289e+05
+2         2        2号线  5.098189e+05
+3         3        3号线  3.250200e+05
+4         4        4号线  3.579985e+05
+
+===== 处理第1年历史数据：2024年 =====
+✓ 2024年：参考期60行
+
+===== 处理第2年历史数据：2023年 =====
+✓ 2023年：参考期54行
+
+===== 处理第3年历史数据：2022年 =====
+✓ 2022年：参考期54行
+
+===== 处理第4年历史数据：2021年 =====
+⚠️ 2021年参考期数据为空，跳过
+✓ 合并完成：共168行
+
+===== 开始计算预测 =====
+标记完成，开始计算每天的最优增长率...
+
+✓ 预测计算完成：共60条预测记录
+
+===== 查询实际数据 =====
+日期范围：20250430 - 20250505
+查询结果：60行
+实际数据的线路：[ 0  1  2  3  4  5  6 31 60 83]
+实际数据的日期：['20250430', '20250501', '20250502', '20250503', '20250504', '20250505']
+
+预测数据示例（前3条）：
+  预测 1: 线路=0 (<class 'int'>), 日期=20250430 (<class 'str'>)
+  预测 2: 线路=0 (<class 'int'>), 日期=20250501 (<class 'str'>)
+  预测 3: 线路=0 (<class 'int'>), 日期=20250502 (<class 'str'>)
+
+实际数据示例（前3条）：
+  实际 1: 线路=0 (<class 'numpy.int64'>), 日期=20250430 (<class 'str'>)
+  实际 2: 线路=1 (<class 'numpy.int64'>), 日期=20250430 (<class 'str'>)
+  实际 3: 线路=2 (<class 'numpy.int64'>), 日期=20250430 (<class 'str'>)
+
+开始匹配预测值和实际值...
+  匹配 1: 线路0 日期20250430 -> 找到1行
+  匹配成功 - 线路0 20250430: 预测=3380872, 实际=2947596, 准确率=85.3%
+  匹配 2: 线路0 日期20250501 -> 找到1行
+  匹配成功 - 线路0 20250501: 预测=3212174, 实际=3128839, 准确率=97.34%
+  匹配 3: 线路0 日期20250502 -> 找到1行
+  匹配成功 - 线路0 20250502: 预测=2894166, 实际=3155998, 准确率=91.7%
+
+✓ 匹配完成：60/60 条记录有实际数据
+✓ 有准确率的记录：60/60
+
+============================================================
+准备返回结果：has_actual = True
+predictions 总数 = 60
+第一条记录示例：{'线路编号': 0, '线路名称': '线网', '预测日期': '20250430', '第几天': 1, '基期日均': 2228510, '最优增长率': 51.71, '最优来源年份': 2023, '预测客流': 3380872, '实际客流': 2947596, '准确率': 85.3, '误差': 433276}
+============================================================
+
+
+============================================================
+预测完成！返回60条记录
+============================================================
+
+
+============================================================
+开始预测线路客流
+指标类型: F_PKLCOUNT (客流量)
+预测日期: 20250430 - 20250505
+参考历史: 前4年
+自定义配置: 否
+============================================================
+
+基期数据查询成功：310行
+基期日均计算完成，共10条线路数据
+base_avg 类型: <class 'pandas.core.frame.DataFrame'>, 形状: (10, 3), 列: ['F_LINENO', 'F_LINENAME', '基期日均']
+base_avg 前几行:
+   F_LINENO F_LINENAME          基期日均
+0         0         线网  2.228510e+06
+1         1        1号线  3.966289e+05
+2         2        2号线  5.098189e+05
+3         3        3号线  3.250200e+05
+4         4        4号线  3.579985e+05
+
+===== 处理第1年历史数据：2024年 =====
+✓ 2024年：参考期60行
+
+===== 处理第2年历史数据：2023年 =====
+✓ 2023年：参考期54行
+
+===== 处理第3年历史数据：2022年 =====
+✓ 2022年：参考期54行
+
+===== 处理第4年历史数据：2021年 =====
+⚠️ 2021年参考期数据为空，跳过
+✓ 合并完成：共168行
+
+===== 开始计算预测 =====
+标记完成，开始计算每天的最优增长率...
+
+✓ 预测计算完成：共60条预测记录
+
+===== 查询实际数据 =====
+日期范围：20250430 - 20250505
+查询结果：60行
+实际数据的线路：[ 0  1  2  3  4  5  6 31 60 83]
+实际数据的日期：['20250430', '20250501', '20250502', '20250503', '20250504', '20250505']
+
+预测数据示例（前3条）：
+  预测 1: 线路=0 (<class 'int'>), 日期=20250430 (<class 'str'>)
+  预测 2: 线路=0 (<class 'int'>), 日期=20250501 (<class 'str'>)
+  预测 3: 线路=0 (<class 'int'>), 日期=20250502 (<class 'str'>)
+
+实际数据示例（前3条）：
+  实际 1: 线路=0 (<class 'numpy.int64'>), 日期=20250430 (<class 'str'>)
+  实际 2: 线路=1 (<class 'numpy.int64'>), 日期=20250430 (<class 'str'>)
+  实际 3: 线路=2 (<class 'numpy.int64'>), 日期=20250430 (<class 'str'>)
+
+开始匹配预测值和实际值...
+  匹配 1: 线路0 日期20250430 -> 找到1行
+  匹配成功 - 线路0 20250430: 预测=3380872, 实际=2947596, 准确率=85.3%
+  匹配 2: 线路0 日期20250501 -> 找到1行
+  匹配成功 - 线路0 20250501: 预测=3212174, 实际=3128839, 准确率=97.34%
+  匹配 3: 线路0 日期20250502 -> 找到1行
+  匹配成功 - 线路0 20250502: 预测=2894166, 实际=3155998, 准确率=91.7%
+
+✓ 匹配完成：60/60 条记录有实际数据
+✓ 有准确率的记录：60/60
+
+============================================================
+准备返回结果：has_actual = True
+predictions 总数 = 60
+第一条记录示例：{'线路编号': 0, '线路名称': '线网', '预测日期': '20250430', '第几天': 1, '基期日均': 2228510, '最优增长率': 51.71, '最优来源年份': 2023, '预测客流': 3380872, '实际客流': 2947596, '准确率': 85.3, '误差': 433276}
+============================================================
+
+
+============================================================
+预测完成！返回60条记录
+============================================================
+
+应用车站过滤：['橘子洲', '五一广场', '碧沙湖']
+完整SQL:
+
+        SELECT 
+            S.ID,
+            REPLACE(S.SQUAD_DATE, '-', '') AS F_DATE,
+            S.STATION_ID AS F_LINENO,
+            S.STATION_NAME AS F_LINENAME,
+            S.PASSENGER_NUM AS F_KLCOUNT,
+            C.F_DATEFEATURES,
+            C.F_ISHOLIDAY,
+            C.F_ISNONGLI,
+            C.F_ISYANGLI,
+            C.F_NEXTDAY,
+            C.F_HOLIDAYTHDAY,
+            C.IS_FIRST,
+            CC.F_YEAR,
+            CC.F_DAYOFWEEK,
+            CC.F_WEEK,
+            CC.F_HOLIDAYTYPE,
+            CC.F_HOLIDAYDAYS,
+            CC.F_HOLIDAYWHICHDAY,
+            CC.COVID19,
+            CC.F_WEATHER,
+            W.F_TQQK AS WEATHER_TYPE
+        FROM 
+            [StationFlowPredict].[dbo].[STATION_FLOW_HISTORY] AS S
+        LEFT JOIN 
+            master.dbo.LSTM_COMMON_HOLIDAYFEATURE AS C
+            ON REPLACE(S.SQUAD_DATE, '-', '') = C.F_DATE
+        LEFT JOIN 
+            master.dbo.CalendarHistory AS CC
+            ON REPLACE(S.SQUAD_DATE, '-', '') = CC.F_DATE
+        LEFT JOIN
+            master.dbo.WeatherHistory AS W
+            ON REPLACE(S.SQUAD_DATE, '-', '') = W.F_DATE
+        WHERE 
+            REPLACE(S.SQUAD_DATE, '-', '') >= '20250501'
+            AND REPLACE(S.SQUAD_DATE, '-', '') <= '20250505'
+            AND S.STATION_NAME IN (N'橘子洲', N'五一广场', N'碧沙湖')
+        ORDER BY 
+            REPLACE(S.SQUAD_DATE, '-', ''), S.STATION_ID
+        
+车站数据查询完成：20行
+开始合并车站数据，原始20行...
+✓ 合并完成：15行
+应用车站过滤：['橘子洲', '五一广场', '碧沙湖']
+/STFS_V1/script/人工算法/yunying.py:186: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+10.1.33.138 - - [24/Oct/2025 01:31:02] "POST /check_station_data_availability HTTP/1.1" 200 -
+/STFS_V1/script/人工算法/yunying.py:186: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+10.1.33.138 - - [24/Oct/2025 01:31:06] "POST /check_station_data_availability HTTP/1.1" 200 -
+/STFS_V1/script/人工算法/yunying.py:186: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+10.1.33.138 - - [24/Oct/2025 01:31:09] "POST /check_station_data_availability HTTP/1.1" 200 -
+/STFS_V1/script/人工算法/yunying.py:186: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:186: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+完整SQL:
+
+        SELECT 
+            S.ID,
+            REPLACE(S.SQUAD_DATE, '-', '') AS F_DATE,
+            S.STATION_ID AS F_LINENO,
+            S.STATION_NAME AS F_LINENAME,
+            S.PASSENGER_NUM AS F_KLCOUNT,
+            C.F_DATEFEATURES,
+            C.F_ISHOLIDAY,
+            C.F_ISNONGLI,
+            C.F_ISYANGLI,
+            C.F_NEXTDAY,
+            C.F_HOLIDAYTHDAY,
+            C.IS_FIRST,
+            CC.F_YEAR,
+            CC.F_DAYOFWEEK,
+            CC.F_WEEK,
+            CC.F_HOLIDAYTYPE,
+            CC.F_HOLIDAYDAYS,
+            CC.F_HOLIDAYWHICHDAY,
+            CC.COVID19,
+            CC.F_WEATHER,
+            W.F_TQQK AS WEATHER_TYPE
+        FROM 
+            [StationFlowPredict].[dbo].[STATION_FLOW_HISTORY] AS S
+        LEFT JOIN 
+            master.dbo.LSTM_COMMON_HOLIDAYFEATURE AS C
+            ON REPLACE(S.SQUAD_DATE, '-', '') = C.F_DATE
+        LEFT JOIN 
+            master.dbo.CalendarHistory AS CC
+            ON REPLACE(S.SQUAD_DATE, '-', '') = CC.F_DATE
+        LEFT JOIN
+            master.dbo.WeatherHistory AS W
+            ON REPLACE(S.SQUAD_DATE, '-', '') = W.F_DATE
+        WHERE 
+            REPLACE(S.SQUAD_DATE, '-', '') >= '20250430'
+            AND REPLACE(S.SQUAD_DATE, '-', '') <= '20250504'
+            AND S.STATION_NAME IN (N'橘子洲', N'五一广场', N'碧沙湖')
+        ORDER BY 
+            REPLACE(S.SQUAD_DATE, '-', ''), S.STATION_ID
+        
+车站数据查询完成：20行
+开始合并车站数据，原始20行...
+✓ 合并完成：15行
+应用车站过滤：['橘子洲', '五一广场', '碧沙湖']
+完整SQL:
+
+        SELECT 
+            S.ID,
+            REPLACE(S.SQUAD_DATE, '-', '') AS F_DATE,
+            S.STATION_ID AS F_LINENO,
+            S.STATION_NAME AS F_LINENAME,
+            S.PASSENGER_NUM AS F_KLCOUNT,
+            C.F_DATEFEATURES,
+            C.F_ISHOLIDAY,
+            C.F_ISNONGLI,
+            C.F_ISYANGLI,
+            C.F_NEXTDAY,
+            C.F_HOLIDAYTHDAY,
+            C.IS_FIRST,
+            CC.F_YEAR,
+            CC.F_DAYOFWEEK,
+            CC.F_WEEK,
+            CC.F_HOLIDAYTYPE,
+            CC.F_HOLIDAYDAYS,
+            CC.F_HOLIDAYWHICHDAY,
+            CC.COVID19,
+            CC.F_WEATHER,
+            W.F_TQQK AS WEATHER_TYPE
+        FROM 
+            [StationFlowPredict].[dbo].[STATION_FLOW_HISTORY] AS S
+        LEFT JOIN 
+            master.dbo.LSTM_COMMON_HOLIDAYFEATURE AS C
+            ON REPLACE(S.SQUAD_DATE, '-', '') = C.F_DATE
+        LEFT JOIN 
+            master.dbo.CalendarHistory AS CC
+            ON REPLACE(S.SQUAD_DATE, '-', '') = CC.F_DATE
+        LEFT JOIN
+            master.dbo.WeatherHistory AS W
+            ON REPLACE(S.SQUAD_DATE, '-', '') = W.F_DATE
+        WHERE 
+            REPLACE(S.SQUAD_DATE, '-', '') >= '20250430'
+            AND REPLACE(S.SQUAD_DATE, '-', '') <= '20250505'
+            AND S.STATION_NAME IN (N'橘子洲', N'五一广场', N'碧沙湖')
+        ORDER BY 
+            REPLACE(S.SQUAD_DATE, '-', ''), S.STATION_ID
+        
+车站数据查询完成：24行
+开始合并车站数据，原始24行...
+✓ 合并完成：18行
+应用车站过滤：['橘子洲', '五一广场', '碧沙湖']
+完整SQL:
+
+        SELECT 
+            S.ID,
+            REPLACE(S.SQUAD_DATE, '-', '') AS F_DATE,
+            S.STATION_ID AS F_LINENO,
+            S.STATION_NAME AS F_LINENAME,
+            S.PASSENGER_NUM AS F_KLCOUNT,
+            C.F_DATEFEATURES,
+            C.F_ISHOLIDAY,
+            C.F_ISNONGLI,
+            C.F_ISYANGLI,
+            C.F_NEXTDAY,
+            C.F_HOLIDAYTHDAY,
+            C.IS_FIRST,
+            CC.F_YEAR,
+            CC.F_DAYOFWEEK,
+            CC.F_WEEK,
+            CC.F_HOLIDAYTYPE,
+            CC.F_HOLIDAYDAYS,
+            CC.F_HOLIDAYWHICHDAY,
+            CC.COVID19,
+            CC.F_WEATHER,
+            W.F_TQQK AS WEATHER_TYPE
+        FROM 
+            [StationFlowPredict].[dbo].[STATION_FLOW_HISTORY] AS S
+        LEFT JOIN 
+            master.dbo.LSTM_COMMON_HOLIDAYFEATURE AS C
+            ON REPLACE(S.SQUAD_DATE, '-', '') = C.F_DATE
+        LEFT JOIN 
+            master.dbo.CalendarHistory AS CC
+            ON REPLACE(S.SQUAD_DATE, '-', '') = CC.F_DATE
+        LEFT JOIN
+            master.dbo.WeatherHistory AS W
+            ON REPLACE(S.SQUAD_DATE, '-', '') = W.F_DATE
+        WHERE 
+            REPLACE(S.SQUAD_DATE, '-', '') >= '20250430'
+            AND REPLACE(S.SQUAD_DATE, '-', '') <= '20250505'
+            AND S.STATION_NAME IN (N'橘子洲', N'五一广场', N'碧沙湖')
+        ORDER BY 
+            REPLACE(S.SQUAD_DATE, '-', ''), S.STATION_ID
+        
+车站数据查询完成：24行
+开始合并车站数据，原始24行...
+✓ 合并完成：18行
+
+============================================================
+开始预测车站客流
+============================================================
+
+应用车站过滤：['橘子洲', '五一广场', '碧沙湖']
+完整SQL:
+
+        SELECT 
+            S.ID,
+            REPLACE(S.SQUAD_DATE, '-', '') AS F_DATE,
+            S.STATION_ID AS F_LINENO,
+            S.STATION_NAME AS F_LINENAME,
+            S.PASSENGER_NUM AS F_KLCOUNT,
+            C.F_DATEFEATURES,
+            C.F_ISHOLIDAY,
+            C.F_ISNONGLI,
+            C.F_ISYANGLI,
+            C.F_NEXTDAY,
+            C.F_HOLIDAYTHDAY,
+            C.IS_FIRST,
+            CC.F_YEAR,
+            CC.F_DAYOFWEEK,
+            CC.F_WEEK,
+            CC.F_HOLIDAYTYPE,
+            CC.F_HOLIDAYDAYS,
+            CC.F_HOLIDAYWHICHDAY,
+            CC.COVID19,
+            CC.F_WEATHER,
+            W.F_TQQK AS WEATHER_TYPE
+        FROM 
+            [StationFlowPredict].[dbo].[STATION_FLOW_HISTORY] AS S
+        LEFT JOIN 
+            master.dbo.LSTM_COMMON_HOLIDAYFEATURE AS C
+            ON REPLACE(S.SQUAD_DATE, '-', '') = C.F_DATE
+        LEFT JOIN 
+            master.dbo.CalendarHistory AS CC
+            ON REPLACE(S.SQUAD_DATE, '-', '') = CC.F_DATE
+        LEFT JOIN
+            master.dbo.WeatherHistory AS W
+            ON REPLACE(S.SQUAD_DATE, '-', '') = W.F_DATE
+        WHERE 
+            REPLACE(S.SQUAD_DATE, '-', '') >= '20250301'
+            AND REPLACE(S.SQUAD_DATE, '-', '') <= '20250331'
+            AND S.STATION_NAME IN (N'橘子洲', N'五一广场', N'碧沙湖')
+        ORDER BY 
+            REPLACE(S.SQUAD_DATE, '-', ''), S.STATION_ID
+        
+车站数据查询完成：124行
+开始合并车站数据，原始124行...
+✓ 合并完成：93行
+✓ 基期：3个车站
+
+🔍 开始查询历年同期数据（共2年）...
+
+📅 处理第1年：2024年
+  🔸 查询参考期：20240430 - 20240505
+应用车站过滤：['橘子洲', '五一广场', '碧沙湖']
+完整SQL:
+
+        SELECT 
+            S.ID,
+            REPLACE(S.SQUAD_DATE, '-', '') AS F_DATE,
+            S.STATION_ID AS F_LINENO,
+            S.STATION_NAME AS F_LINENAME,
+            S.PASSENGER_NUM AS F_KLCOUNT,
+            C.F_DATEFEATURES,
+            C.F_ISHOLIDAY,
+            C.F_ISNONGLI,
+            C.F_ISYANGLI,
+            C.F_NEXTDAY,
+            C.F_HOLIDAYTHDAY,
+            C.IS_FIRST,
+            CC.F_YEAR,
+            CC.F_DAYOFWEEK,
+            CC.F_WEEK,
+            CC.F_HOLIDAYTYPE,
+            CC.F_HOLIDAYDAYS,
+            CC.F_HOLIDAYWHICHDAY,
+            CC.COVID19,
+            CC.F_WEATHER,
+            W.F_TQQK AS WEATHER_TYPE
+        FROM 
+            [StationFlowPredict].[dbo].[STATION_FLOW_HISTORY] AS S
+        LEFT JOIN 
+            master.dbo.LSTM_COMMON_HOLIDAYFEATURE AS C
+            ON REPLACE(S.SQUAD_DATE, '-', '') = C.F_DATE
+        LEFT JOIN 
+            master.dbo.CalendarHistory AS CC
+            ON REPLACE(S.SQUAD_DATE, '-', '') = CC.F_DATE
+        LEFT JOIN
+            master.dbo.WeatherHistory AS W
+            ON REPLACE(S.SQUAD_DATE, '-', '') = W.F_DATE
+        WHERE 
+            REPLACE(S.SQUAD_DATE, '-', '') >= '20240430'
+            AND REPLACE(S.SQUAD_DATE, '-', '') <= '20240505'
+            AND S.STATION_NAME IN (N'橘子洲', N'五一广场', N'碧沙湖')
+        ORDER BY 
+            REPLACE(S.SQUAD_DATE, '-', ''), S.STATION_ID
+        
+车站数据查询完成：24行
+开始合并车站数据，原始24行...
+✓ 合并完成：18行
+  ✓ 参考期：18行，3个车站
+/STFS_V1/script/人工算法/yunying.py:186: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:186: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:186: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:186: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+  🔸 查询基期：20240301 - 20240331
+应用车站过滤：['橘子洲', '五一广场', '碧沙湖']
+完整SQL:
+
+        SELECT 
+            S.ID,
+            REPLACE(S.SQUAD_DATE, '-', '') AS F_DATE,
+            S.STATION_ID AS F_LINENO,
+            S.STATION_NAME AS F_LINENAME,
+            S.PASSENGER_NUM AS F_KLCOUNT,
+            C.F_DATEFEATURES,
+            C.F_ISHOLIDAY,
+            C.F_ISNONGLI,
+            C.F_ISYANGLI,
+            C.F_NEXTDAY,
+            C.F_HOLIDAYTHDAY,
+            C.IS_FIRST,
+            CC.F_YEAR,
+            CC.F_DAYOFWEEK,
+            CC.F_WEEK,
+            CC.F_HOLIDAYTYPE,
+            CC.F_HOLIDAYDAYS,
+            CC.F_HOLIDAYWHICHDAY,
+            CC.COVID19,
+            CC.F_WEATHER,
+            W.F_TQQK AS WEATHER_TYPE
+        FROM 
+            [StationFlowPredict].[dbo].[STATION_FLOW_HISTORY] AS S
+        LEFT JOIN 
+            master.dbo.LSTM_COMMON_HOLIDAYFEATURE AS C
+            ON REPLACE(S.SQUAD_DATE, '-', '') = C.F_DATE
+        LEFT JOIN 
+            master.dbo.CalendarHistory AS CC
+            ON REPLACE(S.SQUAD_DATE, '-', '') = CC.F_DATE
+        LEFT JOIN
+            master.dbo.WeatherHistory AS W
+            ON REPLACE(S.SQUAD_DATE, '-', '') = W.F_DATE
+        WHERE 
+            REPLACE(S.SQUAD_DATE, '-', '') >= '20240301'
+            AND REPLACE(S.SQUAD_DATE, '-', '') <= '20240331'
+            AND S.STATION_NAME IN (N'橘子洲', N'五一广场', N'碧沙湖')
+        ORDER BY 
+            REPLACE(S.SQUAD_DATE, '-', ''), S.STATION_ID
+        
+车站数据查询完成：124行
+开始合并车站数据，原始124行...
+✓ 合并完成：93行
+  ✓ 基期：93行，3个车站
+  🔸 计算2024年基期日均...
+  ✓ 基期日均：3个车站
+  🔸 合并数据并计算增长率...
+  ✓ 合并：18行 -> 18行
+  ✓ 增长率：平均61.41%，最大161.25%
+  ✓ 统计完成：3个车站
+
+📅 处理第2年：2023年
+  🔸 查询参考期：20230430 - 20230505
+应用车站过滤：['橘子洲', '五一广场', '碧沙湖']
+完整SQL:
+
+        SELECT 
+            S.ID,
+            REPLACE(S.SQUAD_DATE, '-', '') AS F_DATE,
+            S.STATION_ID AS F_LINENO,
+            S.STATION_NAME AS F_LINENAME,
+            S.PASSENGER_NUM AS F_KLCOUNT,
+            C.F_DATEFEATURES,
+            C.F_ISHOLIDAY,
+            C.F_ISNONGLI,
+            C.F_ISYANGLI,
+            C.F_NEXTDAY,
+            C.F_HOLIDAYTHDAY,
+            C.IS_FIRST,
+            CC.F_YEAR,
+            CC.F_DAYOFWEEK,
+            CC.F_WEEK,
+            CC.F_HOLIDAYTYPE,
+            CC.F_HOLIDAYDAYS,
+            CC.F_HOLIDAYWHICHDAY,
+            CC.COVID19,
+            CC.F_WEATHER,
+            W.F_TQQK AS WEATHER_TYPE
+        FROM 
+            [StationFlowPredict].[dbo].[STATION_FLOW_HISTORY] AS S
+        LEFT JOIN 
+            master.dbo.LSTM_COMMON_HOLIDAYFEATURE AS C
+            ON REPLACE(S.SQUAD_DATE, '-', '') = C.F_DATE
+        LEFT JOIN 
+            master.dbo.CalendarHistory AS CC
+            ON REPLACE(S.SQUAD_DATE, '-', '') = CC.F_DATE
+        LEFT JOIN
+            master.dbo.WeatherHistory AS W
+            ON REPLACE(S.SQUAD_DATE, '-', '') = W.F_DATE
+        WHERE 
+            REPLACE(S.SQUAD_DATE, '-', '') >= '20230430'
+            AND REPLACE(S.SQUAD_DATE, '-', '') <= '20230505'
+            AND S.STATION_NAME IN (N'橘子洲', N'五一广场', N'碧沙湖')
+        ORDER BY 
+            REPLACE(S.SQUAD_DATE, '-', ''), S.STATION_ID
+        
+车站数据查询完成：24行
+开始合并车站数据，原始24行...
+✓ 合并完成：18行
+  ✓ 参考期：18行，3个车站
+  🔸 查询基期：20230301 - 20230331
+应用车站过滤：['橘子洲', '五一广场', '碧沙湖']
+完整SQL:
+
+        SELECT 
+            S.ID,
+            REPLACE(S.SQUAD_DATE, '-', '') AS F_DATE,
+            S.STATION_ID AS F_LINENO,
+            S.STATION_NAME AS F_LINENAME,
+            S.PASSENGER_NUM AS F_KLCOUNT,
+            C.F_DATEFEATURES,
+            C.F_ISHOLIDAY,
+            C.F_ISNONGLI,
+            C.F_ISYANGLI,
+            C.F_NEXTDAY,
+            C.F_HOLIDAYTHDAY,
+            C.IS_FIRST,
+            CC.F_YEAR,
+            CC.F_DAYOFWEEK,
+            CC.F_WEEK,
+            CC.F_HOLIDAYTYPE,
+            CC.F_HOLIDAYDAYS,
+            CC.F_HOLIDAYWHICHDAY,
+            CC.COVID19,
+            CC.F_WEATHER,
+            W.F_TQQK AS WEATHER_TYPE
+        FROM 
+            [StationFlowPredict].[dbo].[STATION_FLOW_HISTORY] AS S
+        LEFT JOIN 
+            master.dbo.LSTM_COMMON_HOLIDAYFEATURE AS C
+            ON REPLACE(S.SQUAD_DATE, '-', '') = C.F_DATE
+        LEFT JOIN 
+            master.dbo.CalendarHistory AS CC
+            ON REPLACE(S.SQUAD_DATE, '-', '') = CC.F_DATE
+        LEFT JOIN
+            master.dbo.WeatherHistory AS W
+            ON REPLACE(S.SQUAD_DATE, '-', '') = W.F_DATE
+        WHERE 
+            REPLACE(S.SQUAD_DATE, '-', '') >= '20230301'
+            AND REPLACE(S.SQUAD_DATE, '-', '') <= '20230331'
+            AND S.STATION_NAME IN (N'橘子洲', N'五一广场', N'碧沙湖')
+        ORDER BY 
+            REPLACE(S.SQUAD_DATE, '-', ''), S.STATION_ID
+        
+车站数据查询完成：124行
+开始合并车站数据，原始124行...
+✓ 合并完成：93行
+  ✓ 基期：93行，3个车站
+  🔸 计算2023年基期日均...
+  ✓ 基期日均：3个车站
+  🔸 合并数据并计算增长率...
+  ✓ 合并：18行 -> 18行
+  ✓ 增长率：平均56.06%，最大195.59%
+  ✓ 统计完成：3个车站
+
+🔄 合并所有历年数据...
+✓ 合并完成：36行
+🔸 排序并标记天数...
+✓ 标记完成：6天
+
+🔮 开始预测计算...
+📊 待预测车站数：3个
+  🔸 [1/3] 橘子洲（ID:05      ，基期日均:28353）
+    ✓ 预测6天
+  🔸 [2/3] 五一广场（ID:07      ，基期日均:139636）
+    ✓ 预测6天
+  🔸 [3/3] 碧沙湖（ID:14      ，基期日均:9583）
+    ✓ 预测6天
+
+✅ 预测完成：共18条记录
+
+📊 查询实际数据进行准确率对比...
+🔸 查询日期范围：20250430 - 20250505
+应用车站过滤：['橘子洲', '五一广场', '碧沙湖']
+完整SQL:
+
+        SELECT 
+            S.ID,
+            REPLACE(S.SQUAD_DATE, '-', '') AS F_DATE,
+            S.STATION_ID AS F_LINENO,
+            S.STATION_NAME AS F_LINENAME,
+            S.PASSENGER_NUM AS F_KLCOUNT,
+            C.F_DATEFEATURES,
+            C.F_ISHOLIDAY,
+            C.F_ISNONGLI,
+            C.F_ISYANGLI,
+            C.F_NEXTDAY,
+            C.F_HOLIDAYTHDAY,
+            C.IS_FIRST,
+            CC.F_YEAR,
+            CC.F_DAYOFWEEK,
+            CC.F_WEEK,
+            CC.F_HOLIDAYTYPE,
+            CC.F_HOLIDAYDAYS,
+            CC.F_HOLIDAYWHICHDAY,
+            CC.COVID19,
+            CC.F_WEATHER,
+            W.F_TQQK AS WEATHER_TYPE
+        FROM 
+            [StationFlowPredict].[dbo].[STATION_FLOW_HISTORY] AS S
+        LEFT JOIN 
+            master.dbo.LSTM_COMMON_HOLIDAYFEATURE AS C
+            ON REPLACE(S.SQUAD_DATE, '-', '') = C.F_DATE
+        LEFT JOIN 
+            master.dbo.CalendarHistory AS CC
+            ON REPLACE(S.SQUAD_DATE, '-', '') = CC.F_DATE
+        LEFT JOIN
+            master.dbo.WeatherHistory AS W
+            ON REPLACE(S.SQUAD_DATE, '-', '') = W.F_DATE
+        WHERE 
+            REPLACE(S.SQUAD_DATE, '-', '') >= '20250430'
+            AND REPLACE(S.SQUAD_DATE, '-', '') <= '20250505'
+            AND S.STATION_NAME IN (N'橘子洲', N'五一广场', N'碧沙湖')
+        ORDER BY 
+            REPLACE(S.SQUAD_DATE, '-', ''), S.STATION_ID
+        
+车站数据查询完成：24行
+开始合并车站数据，原始24行...
+✓ 合并完成：18行
+✓ 查到实际数据：18行，3个车站
+🔸 开始匹配预测数据与实际数据...
+    ✓ [橘子洲] 20250430: 预测78478 vs 实际38671，准确率-2.94%
+    ✓ [橘子洲] 20250501: 预测83808 vs 实际79600，准确率94.71%
+    ✓ [橘子洲] 20250502: 预测71752 vs 实际98266，准确率73.02%
+✅ 准确率对比完成：18/18条匹配成功
+📈 平均准确率：69.17%
+
+============================================================
+🎉 车站预测完成！
+  📊 预测记录数：18条
+  🎯 准确率对比：有
+  📅 预测期：2025-04-30 至 2025-05-05
+  📆 基期：2025-03-01 至 2025-03-3110.1.33.138 - - [24/Oct/2025 01:31:12] "POST /predict_station_flow HTTP/1.1" 200 -
+10.1.33.138 - - [24/Oct/2025 01:54:51] "GET / HTTP/1.1" 200 -
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+10.1.33.138 - - [24/Oct/2025 01:54:51] "POST /check_data_availability HTTP/1.1" 200 -
+/STFS_V1/script/人工算法/yunying.py:186: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+10.1.33.138 - - [24/Oct/2025 01:54:51] "POST /check_station_data_availability HTTP/1.1" 200 -
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+10.1.33.138 - - [24/Oct/2025 01:54:57] "POST /check_data_availability HTTP/1.1" 200 -
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+10.1.33.138 - - [24/Oct/2025 01:55:06] "POST /check_data_availability HTTP/1.1" 200 -
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+10.1.33.138 - - [24/Oct/2025 01:55:08] "POST /check_data_availability HTTP/1.1" 200 -
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/STFS_V1/script/人工算法/yunying.py:325: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+10.1.33.138 - - [24/Oct/2025 01:55:10] "POST /predict_flow HTTP/1.1" 200 -

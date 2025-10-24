@@ -1,0 +1,42 @@
+{
+  "algorithm": "knn",
+  "mse": 977662.0611473541,
+  "mae": 553.4800933460219,
+  "train_datetime": "20250924",
+  "line_no": "07      ",
+  "version": "20250924",
+  "factors": [
+    "F_WEEK",
+    "F_DATEFEATURES",
+    "F_HOLIDAYTYPE",
+    "F_ISHOLIDAY",
+    "F_ISNONGLI",
+    "F_ISYANGLI",
+    "F_NEXTDAY",
+    "F_HOLIDAYDAYS",
+    "F_HOLIDAYTHDAY",
+    "IS_FIRST",
+    "WEATHER_TYPE",
+    "F_HOUR"
+  ],
+  "config": {
+    "current_version": "20250924",
+    "default_algorithm": "lstm",
+    "model_root_dir": "models/hour",
+    "train_params": {
+      "lookback_hours": 72
+    }
+  },
+  "algorithm_weights": {
+    "knn": 0.2,
+    "last_year_offset": 0.8
+  },
+  "early_morning_config": {
+    "cutoff_hour": 6,
+    "pure_offset_weight": {
+      "knn": 0.0,
+      "last_year_offset": 1.0
+    }
+  },
+  "prediction_type": "hourly"
+}

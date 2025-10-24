@@ -1,0 +1,3894 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>客流历史数据查询系统</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+        
+        /* 标签页切换 */
+        .tabs {
+            display: flex;
+            gap: 10px;
+            padding: 0 40px;
+            background: white;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        .tab {
+            padding: 15px 30px;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            font-weight: 600;
+            color: #666;
+            transition: all 0.3s;
+            user-select: none;
+        }
+        
+        .tab:hover {
+            color: #667eea;
+            background: #f8f9fa;
+        }
+        
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+            background: #f8f9ff;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+
+        .query-panel {
+            padding: 40px;
+            background: #f8f9fa;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .form-group select,
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .form-group select:focus,
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        /* 日期自动填充动画 */
+        @keyframes highlight {
+            0% { background-color: #fff; }
+            50% { background-color: #e6f7ff; }
+            100% { background-color: #fff; }
+        }
+        
+        .auto-filled {
+            animation: highlight 0.8s ease-in-out;
+        }
+
+        .date-range {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 30px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 14px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-secondary {
+            background: #48bb78;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #38a169;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(72, 187, 120, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .results-panel {
+            padding: 40px;
+            display: none;
+        }
+
+        .results-panel.show {
+            display: block;
+        }
+        
+        .stats-panel {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border: 2px solid #e0e0e0;
+        }
+        
+        .stats-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .stat-card:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+            transition: all 0.3s;
+        }
+        
+        .stat-line-name {
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+        
+        .stat-details {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            color: #555;
+        }
+        
+        .stat-label {
+            color: #666;
+        }
+        
+        .stat-value {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .stat-value.highlight {
+            color: #667eea;
+            font-size: 16px;
+        }
+        
+        /* 增长率面板样式 */
+        .growth-panel {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 12px;
+            padding: 25px;
+            margin-top: 30px;
+            border: 2px solid #667eea;
+        }
+        
+        .growth-header {
+            font-size: 20px;
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .growth-input-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .period-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        
+        .growth-result-panel {
+            display: none;
+            margin-top: 20px;
+        }
+        
+        .growth-result-panel.show {
+            display: block;
+        }
+        
+        .growth-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border-left: 4px solid #48bb78;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .growth-card.negative {
+            border-left-color: #f56565;
+        }
+        
+        .growth-card.network {
+            border-left: 6px solid #667eea;
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9ff 100%);
+            box-shadow: 0 4px 8px rgba(102, 126, 234, 0.2);
+        }
+        
+        .growth-card-content {
+            margin-top: 15px;
+        }
+        
+        .growth-card-content.collapsed {
+            display: none;
+        }
+        
+        .toggle-line-detail {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            margin-left: 10px;
+            transition: all 0.3s;
+        }
+        
+        .toggle-line-detail:hover {
+            background: #5568d3;
+            transform: scale(1.05);
+        }
+        
+        .growth-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .growth-line-name {
+            font-weight: 600;
+            color: #333;
+            font-size: 18px;
+        }
+        
+        .growth-rate {
+            font-size: 24px;
+            font-weight: 700;
+        }
+        
+        .growth-rate.positive {
+            color: #48bb78;
+        }
+        
+        .growth-rate.negative {
+            color: #f56565;
+        }
+        
+        .growth-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+        
+        .growth-detail-item {
+            text-align: center;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 6px;
+        }
+        
+        .growth-detail-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .growth-detail-value {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        /* 基期设置区域 */
+        .base-period-section {
+            background: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 2px solid #e0e0e0;
+        }
+        
+        .base-period-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .base-period-header:hover {
+            background: #f8f9fa;
+            margin: -5px -10px;
+            padding: 5px 10px;
+            border-radius: 6px;
+        }
+        
+        .base-period-info {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .base-period-title {
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+        
+        .base-period-dates {
+            color: #667eea;
+            font-weight: 600;
+            font-size: 16px;
+        }
+        
+        .expand-icon {
+            font-size: 20px;
+            transition: transform 0.3s;
+        }
+        
+        .expand-icon.expanded {
+            transform: rotate(180deg);
+        }
+        
+        .base-period-inputs {
+            display: none;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e0e0e0;
+        }
+        
+        .base-period-inputs.show {
+            display: block;
+        }
+        
+        /* 多年设置区域 */
+        .multi-year-section {
+            background: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+            border: 2px dashed #667eea;
+        }
+        
+        .multi-year-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+            padding: 5px;
+            border-radius: 6px;
+        }
+        
+        .multi-year-header:hover {
+            background: #f8f9fa;
+        }
+        
+        .multi-year-title {
+            font-weight: 600;
+            color: #667eea;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .multi-year-inputs {
+            display: none;
+            margin-top: 15px;
+        }
+        
+        .multi-year-inputs.show {
+            display: block;
+        }
+        
+        .year-config-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .year-label {
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 15px;
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .results-header h2 {
+            color: #333;
+            font-size: 24px;
+        }
+
+        .record-count {
+            background: #667eea;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+        
+        .toggle-table-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s;
+        }
+        
+        .toggle-table-btn:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+        }
+        
+        .table-section {
+            display: none;
+        }
+        
+        .table-section.show {
+            display: block;
+        }
+        
+        .chart-container {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .chart-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+
+        thead {
+            background: #f8f9fa;
+            position: sticky;
+            top: 0;
+        }
+
+        th {
+            padding: 12px 16px;
+            text-align: left;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #e0e0e0;
+            white-space: nowrap;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        }
+
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid #f0f0f0;
+            color: #555;
+            white-space: nowrap;
+        }
+        
+        /* 为第一列（日期）添加粗体 */
+        td:first-child {
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            display: none;
+            background: #fed7d7;
+            color: #c53030;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #c53030;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        .metric-info {
+            background: #e6f7ff;
+            border-left: 4px solid #1890ff;
+            padding: 12px;
+            margin-top: 8px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #0050b3;
+        }
+
+        @media (max-width: 768px) {
+            .date-range {
+                grid-template-columns: 1fr;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚇 客流增长率分析系统</h1>
+            <p>自动对比上月数据，分析线路客流增长趋势</p>
+        </div>
+        
+        <!-- 标签页切换 -->
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('growth')">
+                <span>📊</span> 增长率分析
+            </div>
+            <div class="tab" onclick="switchTab('predict')">
+                <span>🔮</span> 线路预测
+            </div>
+            <div class="tab" onclick="switchTab('stationPredict')">
+                <span>🚉</span> 车站预测
+            </div>
+        </div>
+
+        <!-- 增长率分析标签页 -->
+        <div class="tab-content active" id="growthTab">
+        <div class="query-panel">
+            <div class="error-message" id="errorMessage"></div>
+            
+            <div class="form-group">
+                <label for="metricType">指标类型</label>
+                <select id="metricType">
+                    <option value="F_PKLCOUNT">客流量</option>
+                    <option value="F_ENTRANCE">进站人数</option>
+                    <option value="F_EXIT">出站人数</option>
+                    <option value="F_TRANSFER">换乘人数</option>
+                    <option value="F_BOARD_ALIGHT">乘降量</option>
+                </select>
+                <div class="metric-info">
+                    💡 选择您想要分析的客流指标类型
+                </div>
+            </div>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>正在计算增长率，请稍候...</p>
+        </div>
+
+        <div class="results-panel" id="resultsPanel" style="display: block;">
+            <!-- 增长率计算面板 -->
+            <div class="growth-panel" id="growthPanel" style="display: block; margin-top: 0;">
+                <div class="growth-header">
+                    <span>📈</span>
+                    <span>增长率分析</span>
+                </div>
+                
+                <div class="growth-input-section">
+                    <!-- 基期设置 -->
+                    <div class="base-period-section">
+                        <div class="base-period-header" onclick="toggleBasePeriod()">
+                            <div class="base-period-info">
+                                <div class="base-period-title">📅 基期（用于对比的参考数据）</div>
+                                <div class="base-period-dates" id="basePeriodDatesDisplay">
+                                    自动计算中...
+                                </div>
+                            </div>
+                            <div class="expand-icon" id="basePeriodExpandIcon">🔽</div>
+                        </div>
+                        
+                        <div class="base-period-inputs" id="basePeriodInputs">
+                            <div class="metric-info" style="margin-bottom: 15px;">
+                                💡 默认使用对比期所在月份的上一个完整月份作为基期，你可以手动调整
+                            </div>
+                            <div class="date-range">
+                                <div class="form-group">
+                                    <label for="baseStartDate">基期开始日期</label>
+                                    <input type="date" id="baseStartDate">
+                                </div>
+                                <div class="form-group">
+                                    <label for="baseEndDate">基期结束日期</label>
+                                    <input type="date" id="baseEndDate">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="period-title">🔹 对比期（要分析的日期范围）</div>
+                    <div class="date-range">
+                        <div class="form-group">
+                            <label for="compareStartDate">开始日期</label>
+                            <input type="date" id="compareStartDate">
+                        </div>
+                        <div class="form-group">
+                            <label for="compareEndDate">结束日期</label>
+                            <input type="date" id="compareEndDate">
+                        </div>
+                    </div>
+                    <div class="metric-info" style="margin-top: -15px;">
+                        💡 例如：选择2025年5月1日-5月5日，系统自动使用4月整月作为基期对比
+                    </div>
+                    
+                    <div class="form-group" style="margin-top: 20px;">
+                        <label for="yearRange">同比年限（对比前几年同期）</label>
+                        <select id="yearRange" onchange="updateMultiYearConfig()">
+                            <option value="0">仅对比基期（不看历年）</option>
+                            <option value="1">对比去年同期（1年）</option>
+                            <option value="2">对比前2年同期</option>
+                            <option value="3" selected>对比前3年同期</option>
+                            <option value="4">对比前4年同期</option>
+                            <option value="5">对比前5年同期</option>
+                        </select>
+                        <div class="metric-info">
+                            💡 选择后将计算指定日期相比历年同期的增长趋势
+                        </div>
+                    </div>
+                    
+                    <!-- 多年高级设置 -->
+                    <div class="multi-year-section" id="multiYearSection" style="display: none;">
+                        <div class="multi-year-header" onclick="toggleMultiYearConfig()">
+                            <div class="multi-year-title">
+                                <span>⚙️</span>
+                                <span>高级设置：手动调整各年日期</span>
+                            </div>
+                            <div class="expand-icon" id="multiYearExpandIcon">🔽</div>
+                        </div>
+                        
+                        <div class="multi-year-inputs" id="multiYearInputs">
+                            <div class="metric-info" style="margin-bottom: 15px;">
+                                💡 默认使用相同的日期范围（如都是5月1-5日），你可以为每年单独设置
+                            </div>
+                            <div id="yearConfigContainer"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="button-group" style="margin-top: 20px;">
+                        <button class="btn btn-primary" id="calculateGrowthBtn" onclick="calculateGrowthAuto()">
+                            <span>📊</span>
+                            <span>计算增长率</span>
+                        </button>
+                        <button class="btn btn-secondary" id="exportGrowthBtn" onclick="exportGrowthData()" disabled>
+                            <span>📥</span>
+                            <span>导出分析表报</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 增长率结果 -->
+                <div class="growth-result-panel" id="growthResultPanel">
+                    <div class="period-title" style="margin-bottom: 15px;">
+                        📊 增长率分析结果
+                    </div>
+                    
+                    <!-- 最大增长率曲线图表 -->
+                    <div class="chart-container" id="maxGrowthChartContainer" style="display: none;">
+                        <div class="chart-title">
+                            <span>🏆</span>
+                            <span>历年最优表现曲线（各线路每天的最大增长率）</span>
+                        </div>
+                        <canvas id="maxGrowthChart"></canvas>
+                    </div>
+                    
+                    <!-- 增长率时间序列图表 -->
+                    <div class="chart-container" id="growthChartContainer" style="display: none;">
+                        <div class="chart-title">
+                            <span>📊</span>
+                            <span>增长率时间序列（所有年份对比）</span>
+                        </div>
+                        <canvas id="growthChart"></canvas>
+                    </div>
+                    
+                    <div id="growthResultsContainer"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+    
+    <!-- 客流预测标签页 -->
+    <div class="tab-content" id="predictTab">
+        <div class="query-panel">
+            <div class="error-message" id="predictErrorMessage"></div>
+            
+            <div class="form-group">
+                <label for="predictMetricType">指标类型</label>
+                <select id="predictMetricType" onchange="checkPredictDataAvailability()">
+                    <option value="F_PKLCOUNT">客流量</option>
+                    <option value="F_ENTRANCE">进站人数</option>
+                    <option value="F_EXIT">出站人数</option>
+                    <option value="F_TRANSFER">换乘人数</option>
+                    <option value="F_BOARD_ALIGHT">乘降量</option>
+                </select>
+            </div>
+            
+            <div class="period-title" style="margin-top: 20px;">🔮 预测目标日期</div>
+            <div class="date-range">
+                <div class="form-group">
+                    <label for="predictStartDate">开始日期</label>
+                    <input type="date" id="predictStartDate">
+                </div>
+                <div class="form-group">
+                    <label for="predictEndDate">结束日期</label>
+                    <input type="date" id="predictEndDate">
+                </div>
+            </div>
+            <div class="metric-info" style="margin-top: -15px;">
+                💡 选择要预测的日期范围（如：2025年4月30日-5月5日）
+            </div>
+            
+            <div class="form-group" style="margin-top: 20px;">
+                <label for="historyYears">参考历史年限</label>
+                <select id="historyYears" onchange="updatePredictMultiYearConfig()">
+                    <option value="1">参考前1年</option>
+                    <option value="2" selected>参考前2年</option>
+                    <option value="3">参考前3年</option>
+                    <option value="4">参考前4年</option>
+                    <option value="5">参考前5年</option>
+                </select>
+                <div class="metric-info">
+                    💡 基于历年同期的最优增长率进行预测
+                </div>
+            </div>
+            
+            <!-- 数据可用性检查提示 -->
+            <div id="predictDataCheck" style="margin-top: 20px; padding: 12px; border-radius: 8px; display: none;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div id="predictDataCheckIcon" style="font-size: 20px;"></div>
+                    <div id="predictDataCheckText" style="flex: 1;"></div>
+                    <button class="btn btn-secondary" onclick="checkPredictDataAvailability()" style="padding: 6px 12px; font-size: 13px;">
+                        🔍 检查数据
+                    </button>
+                </div>
+            </div>
+            
+            <div class="base-period-section" style="margin-top: 20px;">
+                <div class="base-period-info">
+                    <div class="base-period-title">📅 预测基期（当年上月）</div>
+                    <div class="base-period-dates" id="predictBasePeriodDisplay">
+                        请先选择预测日期
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 历年参考配置 -->
+            <div class="multi-year-section" id="predictMultiYearSection" style="display: none;">
+                <div class="multi-year-header" onclick="togglePredictMultiYearConfig()">
+                    <div class="multi-year-title">
+                        <span>⚙️</span>
+                        <span>高级设置：手动调整历年参考日期</span>
+                    </div>
+                    <div class="expand-icon" id="predictMultiYearExpandIcon">🔽</div>
+                </div>
+                
+                <div class="multi-year-inputs" id="predictMultiYearInputs">
+                    <div class="metric-info" style="margin-bottom: 15px;">
+                        💡 默认使用相同日期（如都是4月30-5月5日），可为每年单独设置参考期和基期
+                    </div>
+                    <div id="predictYearConfigContainer"></div>
+                </div>
+            </div>
+            
+            <div class="button-group" style="margin-top: 30px;">
+                <button class="btn btn-primary" id="predictBtn" onclick="predictFlow()">
+                    <span>🔮</span>
+                    <span>开始预测</span>
+                </button>
+            </div>
+        </div>
+        
+        <div class="loading" id="predictLoading">
+            <div class="spinner"></div>
+            <p>正在预测客流，请稍候...</p>
+        </div>
+        
+        <div class="results-panel" id="predictResultsPanel" style="display: none;">
+            <div class="results-header">
+                <h2>预测结果</h2>
+                <span class="record-count" id="predictRecordCount">0 条记录</span>
+            </div>
+            
+            <!-- 预测准确率统计 -->
+            <div class="stats-panel" id="predictAccuracyPanel" style="display: none;">
+                <div class="stats-title">
+                    <span>🎯</span>
+                    <span>预测准确率统计</span>
+                </div>
+                <div class="stats-grid" id="predictAccuracyGrid"></div>
+            </div>
+            
+            <!-- 预测数据展示 -->
+            <div id="predictDataContainer"></div>
+        </div>
+    </div>
+
+    <!-- 车站预测标签页 -->
+    <div class="tab-content" id="stationPredictTab">
+        <div class="query-panel">
+            <div class="error-message" id="stationPredictErrorMessage"></div>
+            
+            <div class="form-group">
+                <label for="stationPredictMetricType">指标类型</label>
+                <select id="stationPredictMetricType" onchange="checkStationDataAvailability()">
+                    <option value="F_PKLCOUNT">客流量</option>
+                    <option value="F_ENTRANCE">进站人数</option>
+                    <option value="F_EXIT">出站人数</option>
+                    <option value="F_TRANSFER">换乘人数</option>
+                    <option value="F_BOARD_ALIGHT">乘降量</option>
+                </select>
+            </div>
+            
+            <div class="period-title" style="margin-top: 20px;">🚉 预测目标日期</div>
+            <div class="date-range">
+                <div class="form-group">
+                    <label for="stationPredictStartDate">开始日期</label>
+                    <input type="date" id="stationPredictStartDate">
+                </div>
+                <div class="form-group">
+                    <label for="stationPredictEndDate">结束日期</label>
+                    <input type="date" id="stationPredictEndDate">
+                </div>
+            </div>
+            <div class="metric-info" style="margin-top: -15px;">
+                💡 选择要预测的日期范围（如：2025年4月30日-5月5日）
+            </div>
+            
+            <div class="form-group" style="margin-top: 20px;">
+                <label for="stationHistoryYears">参考历史年限</label>
+                <select id="stationHistoryYears" onchange="updateStationMultiYearConfig()">
+                    <option value="1">参考前1年</option>
+                    <option value="2" selected>参考前2年</option>
+                    <option value="3">参考前3年</option>
+                    <option value="4">参考前4年</option>
+                    <option value="5">参考前5年</option>
+                </select>
+                <div class="metric-info">
+                    💡 基于历年同期车站的最优增长率进行预测
+                </div>
+            </div>
+            
+            <!-- 数据可用性检查提示 -->
+            <div id="stationDataCheck" style="margin-top: 20px; padding: 12px; border-radius: 8px; display: none;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div id="stationDataCheckIcon" style="font-size: 20px;"></div>
+                    <div id="stationDataCheckText" style="flex: 1;"></div>
+                    <button class="btn btn-secondary" onclick="checkStationDataAvailability()" style="padding: 6px 12px; font-size: 13px;">
+                        🔍 检查数据
+                    </button>
+                </div>
+            </div>
+            
+            <div class="base-period-section" style="margin-top: 20px;">
+                <div class="base-period-info">
+                    <div class="base-period-title">📅 预测基期（当年上月）</div>
+                    <div class="base-period-dates" id="stationBasePeriodDisplay">
+                        请先选择预测日期
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 历年参考配置 -->
+            <div class="multi-year-section" id="stationMultiYearSection" style="display: none;">
+                <div class="multi-year-header" onclick="toggleStationMultiYearConfig()">
+                    <div class="multi-year-title">
+                        <span>⚙️</span>
+                        <span>高级设置：手动调整历年参考日期</span>
+                    </div>
+                    <div class="expand-icon" id="stationMultiYearExpandIcon">🔽</div>
+                </div>
+                
+                <div class="multi-year-inputs" id="stationMultiYearInputs">
+                    <div class="metric-info" style="margin-bottom: 15px;">
+                        💡 默认使用相同日期（如都是4月30-5月5日），可为每年单独设置参考期和基期
+                    </div>
+                    <div id="stationYearConfigContainer"></div>
+                </div>
+            </div>
+            
+            <div class="button-group" style="margin-top: 30px;">
+                <button class="btn btn-primary" id="stationPredictBtn" onclick="predictStationFlow()">
+                    <span>🚉</span>
+                    <span>开始预测</span>
+                </button>
+            </div>
+        </div>
+        
+        <div class="loading" id="stationPredictLoading">
+            <div class="spinner"></div>
+            <p>正在预测车站客流，请稍候...</p>
+        </div>
+        
+        <div class="results-panel" id="stationPredictResultsPanel" style="display: none;">
+            <div class="results-header">
+                <h2>车站预测结果</h2>
+                <span class="record-count" id="stationPredictRecordCount">0 条记录</span>
+            </div>
+            
+            <!-- 预测准确率统计 -->
+            <div class="stats-panel" id="stationAccuracyPanel" style="display: none;">
+                <div class="stats-title">
+                    <span>🎯</span>
+                    <span>预测准确率统计</span>
+                </div>
+                <div class="stats-grid" id="stationAccuracyGrid"></div>
+            </div>
+            
+            <!-- 预测数据展示 -->
+            <div id="stationDataContainer"></div>
+        </div>
+    </div>
+
+    <script>
+        // 列名中文映射
+        const columnNameMap = {
+            'F_DATE': '日期',
+            'F_LINENO': '线路编号',
+            'F_LINENAME': '线路名称',
+            'WEATHER_TYPE': '天气类型',
+            'F_DATEFEATURES': '日期特征'
+        };
+        
+        // 格式化日期为 YYYY-MM-DD（本地时间，避免时区问题）
+        function formatDateLocal(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+        
+        // 计算开始日期所在月份的月末
+        function getMonthEnd(startDate) {
+            const endDate = new Date(startDate);
+            // 设置为下个月的第0天，即当月的最后一天
+            endDate.setMonth(endDate.getMonth() + 1);
+            endDate.setDate(0);
+            return endDate;
+        }
+        
+        // 设置默认日期
+        window.onload = function() {
+            const today = new Date();
+            
+            // 设置对比期默认为今天
+            document.getElementById('compareEndDate').valueAsDate = today;
+            
+            // 设置对比期开始日期为5天前（示例：假期）
+            const fiveDaysAgo = new Date(today);
+            fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 4); // -4天 = 5天范围
+            document.getElementById('compareStartDate').valueAsDate = fiveDaysAgo;
+            
+            // 初始化基期显示
+            updateBasePeriodDisplay();
+            
+            // 初始化多年设置
+            updateMultiYearConfig();
+            
+            // 监听对比期开始日期变化，自动设置结束日期和更新基期
+            document.getElementById('compareStartDate').addEventListener('change', function() {
+                const startDate = this.valueAsDate;
+                if (startDate) {
+                    // 默认设置为5天后
+                    const endDate = new Date(startDate);
+                    endDate.setDate(endDate.getDate() + 4);
+                    const endDateInput = document.getElementById('compareEndDate');
+                    endDateInput.valueAsDate = endDate;
+                    
+                    // 添加高亮动画效果
+                    endDateInput.classList.add('auto-filled');
+                    setTimeout(() => {
+                        endDateInput.classList.remove('auto-filled');
+                    }, 800);
+                    
+                    // 更新基期显示
+                    updateBasePeriodDisplay();
+                    
+                    // 更新多年配置
+                    updateMultiYearConfig();
+                }
+            });
+            
+            // 监听对比期结束日期变化，也更新基期
+            document.getElementById('compareEndDate').addEventListener('change', function() {
+                updateBasePeriodDisplay();
+                updateMultiYearConfig();
+            });
+            
+            // 监听基期输入框的手动修改，更新显示
+            document.getElementById('baseStartDate').addEventListener('change', function() {
+                const baseStartDate = this.value;
+                const baseEndDate = document.getElementById('baseEndDate').value;
+                const basePeriodDatesDisplay = document.getElementById('basePeriodDatesDisplay');
+                
+                if (baseStartDate && baseEndDate) {
+                    // 计算天数
+                    const start = new Date(baseStartDate);
+                    const end = new Date(baseEndDate);
+                    const days = Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1;
+                    basePeriodDatesDisplay.textContent = `${baseStartDate} 至 ${baseEndDate} （共${days}天）`;
+                }
+            });
+            
+            document.getElementById('baseEndDate').addEventListener('change', function() {
+                const baseStartDate = document.getElementById('baseStartDate').value;
+                const baseEndDate = this.value;
+                const basePeriodDatesDisplay = document.getElementById('basePeriodDatesDisplay');
+                
+                if (baseStartDate && baseEndDate) {
+                    // 计算天数
+                    const start = new Date(baseStartDate);
+                    const end = new Date(baseEndDate);
+                    const days = Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1;
+                    basePeriodDatesDisplay.textContent = `${baseStartDate} 至 ${baseEndDate} （共${days}天）`;
+                }
+            });
+        };
+
+        let currentQueryData = null;
+        let currentGrowthData = null;
+        let growthChartInstance = null;
+        let maxGrowthChartInstance = null;
+        
+        function switchTab(tabName) {
+            // 隐藏所有标签页
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // 显示选中的标签页
+            if (tabName === 'growth') {
+                document.getElementById('growthTab').classList.add('active');
+                document.querySelectorAll('.tab')[0].classList.add('active');
+            } else if (tabName === 'predict') {
+                document.getElementById('predictTab').classList.add('active');
+                document.querySelectorAll('.tab')[1].classList.add('active');
+            } else if (tabName === 'stationPredict') {
+                document.getElementById('stationPredictTab').classList.add('active');
+                document.querySelectorAll('.tab')[2].classList.add('active');
+            }
+        }
+
+        function toggleBasePeriod() {
+            const basePeriodInputs = document.getElementById('basePeriodInputs');
+            const expandIcon = document.getElementById('basePeriodExpandIcon');
+            
+            if (basePeriodInputs.classList.contains('show')) {
+                basePeriodInputs.classList.remove('show');
+                expandIcon.classList.remove('expanded');
+            } else {
+                basePeriodInputs.classList.add('show');
+                expandIcon.classList.add('expanded');
+            }
+        }
+        
+        function toggleMultiYearConfig() {
+            const multiYearInputs = document.getElementById('multiYearInputs');
+            const expandIcon = document.getElementById('multiYearExpandIcon');
+            
+            if (multiYearInputs.classList.contains('show')) {
+                multiYearInputs.classList.remove('show');
+                expandIcon.classList.remove('expanded');
+            } else {
+                multiYearInputs.classList.add('show');
+                expandIcon.classList.add('expanded');
+            }
+        }
+        
+        function updateMultiYearConfig() {
+            const yearRange = parseInt(document.getElementById('yearRange').value);
+            const multiYearSection = document.getElementById('multiYearSection');
+            const yearConfigContainer = document.getElementById('yearConfigContainer');
+            
+            // 如果年限为0，隐藏多年设置
+            if (yearRange === 0) {
+                multiYearSection.style.display = 'none';
+                return;
+            }
+            
+            // 显示多年设置区域
+            multiYearSection.style.display = 'block';
+            
+            // 清空容器
+            yearConfigContainer.innerHTML = '';
+            
+            // 获取当前对比期日期
+            const compareStartDate = document.getElementById('compareStartDate').value;
+            const compareEndDate = document.getElementById('compareEndDate').value;
+            
+            if (!compareStartDate || !compareEndDate) {
+                yearConfigContainer.innerHTML = '<div class="metric-info">请先选择对比期日期</div>';
+                return;
+            }
+            
+            const currentYear = new Date(compareStartDate).getFullYear();
+            
+            // 为每年生成配置项
+            for (let i = 0; i <= yearRange; i++) {
+                const year = currentYear - i;
+                const isCurrent = (i === 0);
+                
+                // 计算该年的默认日期
+                const yearCompareStart = compareStartDate.replace(/^\d{4}/, year);
+                const yearCompareEnd = compareEndDate.replace(/^\d{4}/, year);
+                
+                // 计算该年的基期（上月整月）
+                const compareStart = new Date(yearCompareStart);
+                const compareMonth = compareStart.getMonth();
+                const compareYearNum = compareStart.getFullYear();
+                
+                let baseMonth = compareMonth - 1;
+                let baseYear = compareYearNum;
+                if (baseMonth < 0) {
+                    baseMonth = 11;
+                    baseYear--;
+                }
+                
+                const baseStart = new Date(baseYear, baseMonth, 1);
+                const baseEnd = new Date(baseYear, baseMonth + 1, 0);
+                const yearBaseStart = formatDateLocal(baseStart);
+                const yearBaseEnd = formatDateLocal(baseEnd);
+                
+                const yearConfig = document.createElement('div');
+                yearConfig.className = 'year-config-item';
+                yearConfig.innerHTML = `
+                    <div class="year-label">${year}年${isCurrent ? '（当年）' : '（前' + i + '年）'}</div>
+                    <div class="date-range">
+                        <div class="form-group">
+                            <label for="year${year}CompareStart">对比期开始</label>
+                            <input type="date" id="year${year}CompareStart" value="${yearCompareStart}">
+                        </div>
+                        <div class="form-group">
+                            <label for="year${year}CompareEnd">对比期结束</label>
+                            <input type="date" id="year${year}CompareEnd" value="${yearCompareEnd}">
+                        </div>
+                    </div>
+                    <div class="date-range" style="margin-top: 10px;">
+                        <div class="form-group">
+                            <label for="year${year}BaseStart">基期开始</label>
+                            <input type="date" id="year${year}BaseStart" value="${yearBaseStart}">
+                        </div>
+                        <div class="form-group">
+                            <label for="year${year}BaseEnd">基期结束</label>
+                            <input type="date" id="year${year}BaseEnd" value="${yearBaseEnd}">
+                        </div>
+                    </div>
+                `;
+                yearConfigContainer.appendChild(yearConfig);
+            }
+        }
+        
+        function updateBasePeriodDisplay() {
+            const compareStartDate = document.getElementById('compareStartDate').value;
+            const baseStartInput = document.getElementById('baseStartDate');
+            const baseEndInput = document.getElementById('baseEndDate');
+            const basePeriodDatesDisplay = document.getElementById('basePeriodDatesDisplay');
+            
+            if (compareStartDate) {
+                // 计算基期 - 对比期所在月份的上一个完整月份
+                const compareStart = new Date(compareStartDate);
+                
+                // 获取对比期开始日期的年月
+                const compareYear = compareStart.getFullYear();
+                const compareMonth = compareStart.getMonth(); // 0-11
+                
+                // 基期是上一个月
+                let baseYear = compareYear;
+                let baseMonth = compareMonth - 1;
+                
+                // 如果是1月，则基期是上一年的12月
+                if (baseMonth < 0) {
+                    baseMonth = 11;
+                    baseYear--;
+                }
+                
+                // 基期开始日期 = 上月1日
+                const baseStart = new Date(baseYear, baseMonth, 1);
+                
+                // 基期结束日期 = 上月最后一天
+                const baseEnd = new Date(baseYear, baseMonth + 1, 0); // 下月的第0天 = 当月最后一天
+                
+                // 使用本地时间格式化，避免时区问题
+                const baseStartDate = formatDateLocal(baseStart);
+                const baseEndDate = formatDateLocal(baseEnd);
+                
+                // 计算天数
+                const days = baseEnd.getDate(); // 月份的最后一天就是天数
+                
+                // 更新隐藏的输入框
+                baseStartInput.value = baseStartDate;
+                baseEndInput.value = baseEndDate;
+                
+                // 更新显示 - 显示月份名称
+                const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+                basePeriodDatesDisplay.textContent = `${baseStartDate} 至 ${baseEndDate} （${baseYear}年${monthNames[baseMonth]}，共${days}天）`;
+            } else {
+                basePeriodDatesDisplay.textContent = '请先选择对比期日期';
+            }
+        }
+
+        function toggleLineDetail(lineIndex) {
+            const content = document.getElementById(`lineContent${lineIndex}`);
+            const icon = document.getElementById(`toggleIcon${lineIndex}`);
+            const text = document.getElementById(`toggleText${lineIndex}`);
+            
+            if (content.classList.contains('collapsed')) {
+                content.classList.remove('collapsed');
+                icon.textContent = '🙈';
+                text.textContent = '收起详情';
+            } else {
+                content.classList.add('collapsed');
+                icon.textContent = '👁️';
+                text.textContent = '查看详情';
+            }
+        }
+        
+        function toggleDataTable() {
+            const tableSection = document.getElementById('tableSection');
+            const toggleIcon = document.getElementById('toggleIcon');
+            const toggleText = document.getElementById('toggleText');
+            
+            if (tableSection.classList.contains('show')) {
+                tableSection.classList.remove('show');
+                toggleIcon.textContent = '👁️';
+                toggleText.textContent = '查看详细数据';
+            } else {
+                tableSection.classList.add('show');
+                toggleIcon.textContent = '🙈';
+                toggleText.textContent = '隐藏详细数据';
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = '❌ ' + message;
+            errorDiv.classList.add('show');
+            setTimeout(() => {
+                errorDiv.classList.remove('show');
+            }, 5000);
+        }
+
+        function queryData() {
+            const metricType = document.getElementById('metricType').value;
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+
+            if (!startDate || !endDate) {
+                showError('请选择开始日期和结束日期');
+                return;
+            }
+
+            if (new Date(startDate) > new Date(endDate)) {
+                showError('开始日期不能晚于结束日期');
+                return;
+            }
+
+            // 显示加载动画
+            document.getElementById('loading').classList.add('show');
+            document.getElementById('resultsPanel').classList.remove('show');
+            document.getElementById('queryBtn').disabled = true;
+            document.getElementById('exportBtn').disabled = true;
+
+            // 保存当前查询参数
+            currentQueryData = {
+                metric_type: metricType,
+                start_date: startDate,
+                end_date: endDate
+            };
+
+            // 发送查询请求
+            fetch('/query', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(currentQueryData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('loading').classList.remove('show');
+                document.getElementById('queryBtn').disabled = false;
+
+                if (data.success) {
+                    displayResults(data);
+                    document.getElementById('exportBtn').disabled = false;
+                } else {
+                    showError(data.error || '查询失败');
+                }
+            })
+            .catch(error => {
+                document.getElementById('loading').classList.remove('show');
+                document.getElementById('queryBtn').disabled = false;
+                showError('网络错误: ' + error.message);
+            });
+        }
+
+        function displayResults(data) {
+            const resultsPanel = document.getElementById('resultsPanel');
+            const tableHead = document.getElementById('tableHead');
+            const tableBody = document.getElementById('tableBody');
+            const recordCount = document.getElementById('recordCount');
+            const statsPanel = document.getElementById('statsPanel');
+            const statsGrid = document.getElementById('statsGrid');
+            const statsMetricName = document.getElementById('statsMetricName');
+
+            // 清空表格
+            tableHead.innerHTML = '';
+            tableBody.innerHTML = '';
+            statsGrid.innerHTML = '';
+
+            // 显示记录数
+            recordCount.textContent = `${data.total_records} 条记录`;
+
+            // 显示线路统计
+            if (data.line_stats && data.line_stats.length > 0) {
+                statsMetricName.textContent = `${data.metric_name}统计`;
+                statsPanel.style.display = 'block';
+                
+                data.line_stats.forEach(stat => {
+                    const card = document.createElement('div');
+                    card.className = 'stat-card';
+                    card.innerHTML = `
+                        <div class="stat-line-name">${stat.F_LINENAME || '未知线路'}</div>
+                        <div class="stat-details">
+                            <div class="stat-item">
+                                <span class="stat-label">平均${data.metric_name}:</span>
+                                <span class="stat-value highlight">${stat['平均值'].toLocaleString('zh-CN')}</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">总计:</span>
+                                <span class="stat-value">${stat['总计'].toLocaleString('zh-CN')}</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">统计天数:</span>
+                                <span class="stat-value">${stat['天数']} 天</span>
+                            </div>
+                        </div>
+                    `;
+                    statsGrid.appendChild(card);
+                });
+            } else {
+                statsPanel.style.display = 'none';
+            }
+
+            // 创建表头
+            const headerRow = document.createElement('tr');
+            data.columns.forEach(col => {
+                const th = document.createElement('th');
+                // 使用中文列名，如果映射中没有则使用原列名
+                th.textContent = columnNameMap[col] || col;
+                headerRow.appendChild(th);
+            });
+            tableHead.appendChild(headerRow);
+
+            // 创建表格内容
+            data.data.forEach(row => {
+                const tr = document.createElement('tr');
+                data.columns.forEach(col => {
+                    const td = document.createElement('td');
+                    const value = row[col];
+                    // 格式化显示值
+                    if (value !== null && value !== undefined) {
+                        // 如果是数字，添加千位分隔符
+                        if (typeof value === 'number' && !col.includes('DATE') && !col.includes('LINENO')) {
+                            td.textContent = value.toLocaleString('zh-CN');
+                        } else {
+                            td.textContent = value;
+                        }
+                    } else {
+                        td.textContent = '';
+                    }
+                    tr.appendChild(td);
+                });
+                tableBody.appendChild(tr);
+            });
+
+            // 显示结果面板
+            resultsPanel.classList.add('show');
+            
+            // 滚动到结果区域
+            resultsPanel.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function exportData() {
+            if (!currentQueryData) {
+                showError('请先查询数据');
+                return;
+            }
+
+            document.getElementById('exportBtn').disabled = true;
+            document.getElementById('exportBtn').innerHTML = '<span>⏳</span><span>导出中...</span>';
+
+            fetch('/export', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(currentQueryData)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('导出失败');
+                }
+                return response.blob();
+            })
+            .then(blob => {
+                // 创建下载链接
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `客流数据_${currentQueryData.metric_type}_${currentQueryData.start_date}_${currentQueryData.end_date}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+
+                // 恢复按钮状态
+                document.getElementById('exportBtn').disabled = false;
+                document.getElementById('exportBtn').innerHTML = '<span>📥</span><span>导出CSV</span>';
+            })
+            .catch(error => {
+                showError('导出失败: ' + error.message);
+                document.getElementById('exportBtn').disabled = false;
+                document.getElementById('exportBtn').innerHTML = '<span>📥</span><span>导出CSV</span>';
+            });
+        }
+        
+        function calculateGrowthAuto() {
+            const metricType = document.getElementById('metricType').value;
+            const compareStartDate = document.getElementById('compareStartDate').value;
+            const compareEndDate = document.getElementById('compareEndDate').value;
+            const yearRange = parseInt(document.getElementById('yearRange').value);
+            
+            if (!compareStartDate || !compareEndDate) {
+                showError('请选择要分析的日期范围');
+                return;
+            }
+            
+            if (new Date(compareStartDate) > new Date(compareEndDate)) {
+                showError('对比期开始日期不能晚于结束日期');
+                return;
+            }
+            
+            // 检查是否使用了高级多年配置
+            const multiYearInputs = document.getElementById('multiYearInputs');
+            const useCustomConfig = multiYearInputs && multiYearInputs.classList.contains('show') && yearRange > 0;
+            
+            let requestData = {
+                metric_type: metricType
+            };
+            
+            if (useCustomConfig) {
+                // 使用自定义的多年配置
+                const yearConfigs = [];
+                const currentYear = new Date(compareStartDate).getFullYear();
+                
+                for (let i = 0; i <= yearRange; i++) {
+                    const year = currentYear - i;
+                    const yearCompareStart = document.getElementById(`year${year}CompareStart`)?.value;
+                    const yearCompareEnd = document.getElementById(`year${year}CompareEnd`)?.value;
+                    const yearBaseStart = document.getElementById(`year${year}BaseStart`)?.value;
+                    const yearBaseEnd = document.getElementById(`year${year}BaseEnd`)?.value;
+                    
+                    if (yearCompareStart && yearCompareEnd && yearBaseStart && yearBaseEnd) {
+                        yearConfigs.push({
+                            year: year,
+                            compare_start: yearCompareStart,
+                            compare_end: yearCompareEnd,
+                            base_start: yearBaseStart,
+                            base_end: yearBaseEnd
+                        });
+                    }
+                }
+                
+                if (yearConfigs.length === 0) {
+                    showError('未找到有效的年份配置');
+                    return;
+                }
+                
+                console.log('使用自定义多年配置:', yearConfigs);
+                requestData.year_configs = yearConfigs;
+                
+                // 使用多年配置API
+                const apiUrl = '/calculate_growth_multi_year';
+                
+                // 显示加载状态
+                const calculateBtn = document.getElementById('calculateGrowthBtn');
+                const loading = document.getElementById('loading');
+                calculateBtn.disabled = true;
+                calculateBtn.innerHTML = '<span>⏳</span><span>计算中...</span>';
+                loading.classList.add('show');
+                
+                fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestData)
+                })
+                .then(response => {
+                    console.log('收到响应:', response);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('解析后的数据:', data);
+                    loading.classList.remove('show');
+                    calculateBtn.disabled = false;
+                    calculateBtn.innerHTML = '<span>📊</span><span>计算增长率</span>';
+                    
+                    if (data.success) {
+                        // 保存当前查询配置，用于导出
+                        currentGrowthData = {
+                            metric_type: metricType,
+                            year_configs: yearConfigs
+                        };
+                        
+                        displayGrowthResults(data);
+                        
+                        // 启用导出按钮
+                        document.getElementById('exportGrowthBtn').disabled = false;
+                    } else {
+                        console.error('计算失败:', data.error);
+                        showError(data.error || '计算失败');
+                    }
+                })
+                .catch(error => {
+                    loading.classList.remove('show');
+                    calculateBtn.disabled = false;
+                    calculateBtn.innerHTML = '<span>📊</span><span>计算增长率</span>';
+                    showError('网络错误: ' + error.message);
+                    console.error('请求错误:', error);
+                });
+                
+                return;
+            }
+            
+            // 使用默认配置（原有逻辑）
+            const baseStartDate = document.getElementById('baseStartDate').value;
+            const baseEndDate = document.getElementById('baseEndDate').value;
+            
+            if (!baseStartDate || !baseEndDate) {
+                showError('基期日期计算失败，请刷新页面重试');
+                return;
+            }
+            
+            if (new Date(baseStartDate) > new Date(baseEndDate)) {
+                showError('基期开始日期不能晚于结束日期');
+                return;
+            }
+            
+            console.log('基期:', baseStartDate, '至', baseEndDate);
+            console.log('对比期:', compareStartDate, '至', compareEndDate);
+            console.log('同比年限:', yearRange);
+            
+            // 显示加载状态
+            const calculateBtn = document.getElementById('calculateGrowthBtn');
+            const loading = document.getElementById('loading');
+            calculateBtn.disabled = true;
+            calculateBtn.innerHTML = '<span>⏳</span><span>计算中...</span>';
+            loading.classList.add('show');
+            
+            // 发送增长率计算请求
+            fetch('/calculate_growth', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    metric_type: metricType,
+                    base_start_date: baseStartDate,
+                    base_end_date: baseEndDate,
+                    compare_start_date: compareStartDate,
+                    compare_end_date: compareEndDate,
+                    year_range: yearRange
+                })
+            })
+            .then(response => {
+                console.log('收到响应:', response);
+                return response.json();
+            })
+            .then(data => {
+                console.log('解析后的数据:', data);
+                loading.classList.remove('show');
+                calculateBtn.disabled = false;
+                calculateBtn.innerHTML = '<span>📊</span><span>计算增长率</span>';
+                
+                if (data.success) {
+                    // 保存当前查询配置，用于导出
+                    currentGrowthData = {
+                        metric_type: metricType,
+                        base_start_date: baseStartDate,
+                        base_end_date: baseEndDate,
+                        compare_start_date: compareStartDate,
+                        compare_end_date: compareEndDate,
+                        year_range: yearRange
+                    };
+                    
+                    displayGrowthResults(data);
+                    
+                    // 启用导出按钮
+                    document.getElementById('exportGrowthBtn').disabled = false;
+                } else {
+                    console.error('计算失败:', data.error);
+                    showError(data.error || '计算失败');
+                }
+            })
+            .catch(error => {
+                loading.classList.remove('show');
+                calculateBtn.disabled = false;
+                calculateBtn.innerHTML = '<span>📊</span><span>计算增长率</span>';
+                showError('网络错误: ' + error.message);
+                console.error('请求错误:', error);
+            });
+        }
+        
+        function exportGrowthData() {
+            if (!currentGrowthData) {
+                showError('请先计算增长率');
+                return;
+            }
+            
+            const exportBtn = document.getElementById('exportGrowthBtn');
+            exportBtn.disabled = true;
+            exportBtn.innerHTML = '<span>⏳</span><span>导出中...</span>';
+            
+            fetch('/export_growth', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(currentGrowthData)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('导出失败');
+                }
+                return response.blob();
+            })
+            .then(blob => {
+                // 创建下载链接
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                
+                // 生成文件名
+                const compareStart = currentGrowthData.compare_start_date || '';
+                const compareEnd = currentGrowthData.compare_end_date || '';
+                const metricName = document.getElementById('metricType').selectedOptions[0].text;
+                a.download = `增长率分析_${metricName}_${compareStart}至${compareEnd}.csv`;
+                
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                // 恢复按钮状态
+                exportBtn.disabled = false;
+                exportBtn.innerHTML = '<span>📥</span><span>导出分析表报</span>';
+            })
+            .catch(error => {
+                showError('导出失败: ' + error.message);
+                exportBtn.disabled = false;
+                exportBtn.innerHTML = '<span>📥</span><span>导出分析表报</span>';
+            });
+        }
+        
+        function displayGrowthResults(data) {
+            console.log('显示增长率结果:', data);
+            
+            const growthResultPanel = document.getElementById('growthResultPanel');
+            const growthResultsContainer = document.getElementById('growthResultsContainer');
+            const growthChartContainer = document.getElementById('growthChartContainer');
+            
+            // 清空容器
+            growthResultsContainer.innerHTML = '';
+            
+            // 添加时段说明
+            const periodInfo = document.createElement('div');
+            periodInfo.className = 'metric-info';
+            periodInfo.style.marginBottom = '20px';
+            
+            let periodInfoHTML = `
+                基期：${data.base_period} （日均值作为基准）<br>
+                对比期：${data.compare_period} （每天相对基期日均的增长率）
+            `;
+            
+            if (data.year_range > 0) {
+                const years = data.years_list || [];
+                periodInfoHTML += `<br>同比年份：${years.join('、')}年 （共${data.year_range}年同期对比）`;
+            }
+            
+            periodInfo.innerHTML = periodInfoHTML;
+            growthResultsContainer.appendChild(periodInfo);
+            
+            // 显示每条线路每天的增长率
+            if (data.growth_data && data.growth_data.length > 0) {
+                console.log('增长率数据条数:', data.growth_data.length);
+                
+                // 如果有多年数据，绘制最大增长率曲线
+                if (data.max_growth_by_day && data.max_growth_by_day.length > 0) {
+                    try {
+                        drawMaxGrowthChart(data.max_growth_by_day, data.metric_name);
+                        document.getElementById('maxGrowthChartContainer').style.display = 'block';
+                    } catch (error) {
+                        console.error('绘制最大增长率图表失败:', error);
+                    }
+                }
+                
+                // 绘制增长率时间序列图表
+                try {
+                    drawGrowthTimeSeriesChart(data.growth_data, data.metric_name);
+                    growthChartContainer.style.display = 'block';
+                } catch (error) {
+                    console.error('绘制图表失败:', error);
+                    growthChartContainer.style.display = 'none';
+                }
+                
+                // 按线路和年份分组数据
+                const lineGroups = {};
+                data.growth_data.forEach(item => {
+                    const lineName = item['线路名称'] || '未知线路';
+                    const year = item['年份'] || '未知年份';
+                    
+                    if (!lineGroups[lineName]) {
+                        lineGroups[lineName] = {};
+                    }
+                    if (!lineGroups[lineName][year]) {
+                        lineGroups[lineName][year] = [];
+                    }
+                    lineGroups[lineName][year].push(item);
+                });
+                
+                // 获取线路编号并排序（线网0优先）
+                const sortedLines = Object.keys(lineGroups).sort((a, b) => {
+                    const getLineNo = (name) => {
+                        const first = lineGroups[name][Object.keys(lineGroups[name])[0]][0];
+                        return first['线路编号'] || 999;
+                    };
+                    const aNo = getLineNo(a);
+                    const bNo = getLineNo(b);
+                    
+                    // 线网(0)排第一
+                    if (aNo === 0) return -1;
+                    if (bNo === 0) return 1;
+                    return aNo - bNo;
+                });
+                
+                // 为每条线路创建一个卡片
+                sortedLines.forEach((lineName, lineIndex) => {
+                    const lineYearData = lineGroups[lineName];
+                    const firstItem = Object.values(lineYearData)[0][0];
+                    const lineNo = firstItem['线路编号'] || 0;
+                    const isNetwork = (lineNo === 0);
+                    
+                    // 计算所有年份的总平均增长率
+                    let totalDataCount = 0;
+                    let totalGrowthSum = 0;
+                    Object.values(lineYearData).forEach(yearData => {
+                        yearData.forEach(item => {
+                            totalGrowthSum += item['增长率'];
+                            totalDataCount++;
+                        });
+                    });
+                    const avgGrowth = totalDataCount > 0 ? totalGrowthSum / totalDataCount : 0;
+                    const isPositive = avgGrowth >= 0;
+                    
+                    // 找出这条线路的最大增长率数据
+                    const lineMaxGrowth = data.max_growth_by_day ? 
+                        data.max_growth_by_day.filter(item => item['线路编号'] === lineNo) : [];
+                    
+                    const card = document.createElement('div');
+                    card.className = `growth-card ${isPositive ? '' : 'negative'} ${isNetwork ? 'network' : ''}`;
+                    
+                    // 创建表格显示每年的数据
+                    let tableHTML = `
+                        <div class="growth-card-header">
+                            <div style="display: flex; align-items: center;">
+                                <div class="growth-line-name">
+                                    ${isNetwork ? '🌐 ' : ''}${lineName}${isNetwork ? '（线网总体）' : ''}
+                                </div>
+                                ${!isNetwork ? `<button class="toggle-line-detail" onclick="toggleLineDetail(${lineIndex})">
+                                    <span id="toggleIcon${lineIndex}">👁️</span>
+                                    <span id="toggleText${lineIndex}">查看详情</span>
+                                </button>` : ''}
+                            </div>
+                            <div class="growth-rate ${isPositive ? 'positive' : 'negative'}">
+                                总平均 ${isPositive ? '↑' : '↓'} ${Math.abs(avgGrowth).toFixed(2)}%
+                            </div>
+                        </div>
+                    `;
+                    
+                    // 显示最优增长率摘要（如果有多年数据）
+                    if (lineMaxGrowth.length > 0) {
+                        const maxOfMax = Math.max(...lineMaxGrowth.map(item => item['最大增长率']));
+                        const avgMax = lineMaxGrowth.reduce((sum, item) => sum + item['最大增长率'], 0) / lineMaxGrowth.length;
+                        
+                        tableHTML += `
+                            <div style="background: #fff9e6; padding: 12px; border-radius: 8px; margin-top: 15px; border-left: 4px solid #ffc107;">
+                                <div style="font-size: 13px; color: #666; margin-bottom: 5px;">🏆 历年最优表现</div>
+                                <div style="display: flex; justify-content: space-around; text-align: center;">
+                                    <div>
+                                        <div style="font-size: 12px; color: #888;">峰值增长率</div>
+                                        <div style="font-size: 18px; font-weight: 700; color: #ffc107;">${maxOfMax.toFixed(2)}%</div>
+                                    </div>
+                                    <div>
+                                        <div style="font-size: 12px; color: #888;">平均最优</div>
+                                        <div style="font-size: 18px; font-weight: 700; color: #ff9800;">${avgMax.toFixed(2)}%</div>
+                                    </div>
+                                    <div>
+                                        <div style="font-size: 12px; color: #888;">基期日均</div>
+                                        <div style="font-size: 18px; font-weight: 700; color: #667eea;">${firstItem['基期日均'].toLocaleString('zh-CN')}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        tableHTML += `
+                            <div style="margin-top: 15px; margin-bottom: 10px;">
+                                <div style="font-size: 14px; color: #666;">
+                                    基期日均：<strong style="color: #667eea;">${firstItem['基期日均'].toLocaleString('zh-CN')}</strong>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    // 详细数据区域（可折叠）
+                    tableHTML += `<div class="growth-card-content ${isNetwork ? '' : 'collapsed'}" id="lineContent${lineIndex}">`;
+                    
+                    // 显示最优增长率详细数据（如果有多年数据）
+                    if (lineMaxGrowth.length > 0) {
+                        tableHTML += `
+                            <div style="background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%); color: white; padding: 10px 15px; border-radius: 6px; margin-bottom: 15px; font-weight: 600; display: flex; justify-content: space-between; align-items: center;">
+                                <span>🏆 历年最优增长率（每天的历史最佳）</span>
+                            </div>
+                            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; border: 2px solid #ffc107;">
+                                <thead>
+                                    <tr style="background: linear-gradient(135deg, #fff9e6 0%, #fff3cd 100%);">
+                                        <th style="padding: 10px; text-align: center; border-bottom: 2px solid #ffc107;">第几天</th>
+                                        <th style="padding: 10px; text-align: right; border-bottom: 2px solid #ffc107;">最大增长率</th>
+                                        <th style="padding: 10px; text-align: center; border-bottom: 2px solid #ffc107;">来自年份</th>
+                                        <th style="padding: 10px; text-align: right; border-bottom: 2px solid #ffc107;">当日客流</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                        `;
+                        
+                        lineMaxGrowth.sort((a, b) => a['第几天'] - b['第几天']).forEach(item => {
+                            const maxGrowth = item['最大增长率'];
+                            const isPositive = maxGrowth >= 0;
+                            const growthColor = isPositive ? '#48bb78' : '#f56565';
+                            
+                            tableHTML += `
+                                <tr style="border-bottom: 1px solid #ffe8a1;">
+                                    <td style="padding: 10px; text-align: center; font-weight: 600; background: #fff9e6;">第${item['第几天']}天</td>
+                                    <td style="padding: 10px; text-align: right; color: ${growthColor}; font-weight: 700; font-size: 16px;">
+                                        ${isPositive ? '↑' : '↓'} ${Math.abs(maxGrowth).toFixed(2)}%
+                                    </td>
+                                    <td style="padding: 10px; text-align: center; color: #667eea; font-weight: 600;">
+                                        ${item['最大值年份']}年
+                                    </td>
+                                    <td style="padding: 10px; text-align: right; font-weight: 600;">
+                                        ${item['最大值客流'].toLocaleString('zh-CN')}
+                                    </td>
+                                </tr>
+                            `;
+                        });
+                        
+                        tableHTML += `
+                                </tbody>
+                            </table>
+                            <div style="border-top: 2px dashed #e0e0e0; margin: 20px 0; padding-top: 15px;">
+                                <div style="color: #666; font-size: 13px; margin-bottom: 10px;">📅 各年度详细数据</div>
+                            </div>
+                        `;
+                    }
+                    
+                    // 按年份降序排列（最新的在上面）
+                    const years = Object.keys(lineYearData).sort((a, b) => b - a);
+                    
+                    years.forEach((year, yearIndex) => {
+                        const yearData = lineYearData[year];
+                        const yearAvgGrowth = yearData.reduce((sum, item) => sum + item['增长率'], 0) / yearData.length;
+                        const yearIsPositive = yearAvgGrowth >= 0;
+                        
+                        // 年份标题（如果有多年数据）
+                        if (years.length > 1) {
+                            tableHTML += `
+                                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 8px 12px; border-radius: 6px; margin-top: ${yearIndex > 0 ? '15px' : '0'}; margin-bottom: 10px; font-weight: 600;">
+                                    ${year}年同期 - 平均增长率: ${yearIsPositive ? '↑' : '↓'} ${Math.abs(yearAvgGrowth).toFixed(2)}%
+                                </div>
+                            `;
+                        }
+                        
+                        tableHTML += `
+                            <table style="width: 100%; border-collapse: collapse; margin-bottom: 10px;">
+                                <thead>
+                                    <tr style="background: #f8f9fa;">
+                                        <th style="padding: 8px; text-align: left; border-bottom: 2px solid #e0e0e0;">日期</th>
+                                        <th style="padding: 8px; text-align: right; border-bottom: 2px solid #e0e0e0;">当日客流</th>
+                                        <th style="padding: 8px; text-align: right; border-bottom: 2px solid #e0e0e0;">增长量</th>
+                                        <th style="padding: 8px; text-align: right; border-bottom: 2px solid #e0e0e0;">增长率</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                        `;
+                        
+                        yearData.forEach(item => {
+                            const dayGrowth = item['增长率'];
+                            const dayPositive = dayGrowth >= 0;
+                            const growthColor = dayPositive ? '#48bb78' : '#f56565';
+                            
+                            tableHTML += `
+                                <tr style="border-bottom: 1px solid #f0f0f0;">
+                                    <td style="padding: 8px;">${item['日期']}</td>
+                                    <td style="padding: 8px; text-align: right;">${item['当日客流'].toLocaleString('zh-CN')}</td>
+                                    <td style="padding: 8px; text-align: right; color: ${growthColor}; font-weight: 600;">
+                                        ${dayPositive ? '+' : ''}${item['增长量'].toLocaleString('zh-CN')}
+                                    </td>
+                                    <td style="padding: 8px; text-align: right; color: ${growthColor}; font-weight: 600;">
+                                        ${dayPositive ? '↑' : '↓'} ${Math.abs(dayGrowth).toFixed(2)}%
+                                    </td>
+                                </tr>
+                            `;
+                        });
+                        
+                        tableHTML += `
+                                </tbody>
+                            </table>
+                        `;
+                    });
+                    
+                    tableHTML += `</div>`; // 关闭 growth-card-content
+                    
+                    card.innerHTML = tableHTML;
+                    growthResultsContainer.appendChild(card);
+                });
+                
+                growthResultPanel.classList.add('show');
+                
+                // 滚动到增长率结果
+                growthResultPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } else {
+                showError('没有找到可比较的数据');
+            }
+        }
+        
+        function drawMaxGrowthChart(maxGrowthData, metricName) {
+            console.log('开始绘制最大增长率曲线, 数据:', maxGrowthData);
+            
+            // 检查Chart.js是否加载
+            if (typeof Chart === 'undefined') {
+                console.error('Chart.js 未加载');
+                return;
+            }
+            
+            // 销毁旧图表
+            if (maxGrowthChartInstance) {
+                maxGrowthChartInstance.destroy();
+            }
+            
+            // 按线路分组
+            const lineGroups = {};
+            maxGrowthData.forEach(item => {
+                const lineName = item['线路名称'] || '未知线路';
+                if (!lineGroups[lineName]) {
+                    lineGroups[lineName] = [];
+                }
+                lineGroups[lineName].push(item);
+            });
+            
+            // 准备图表数据集
+            const datasets = [];
+            const colors = [
+                { border: 'rgba(255, 99, 132, 1)', bg: 'rgba(255, 99, 132, 0.2)' },
+                { border: 'rgba(54, 162, 235, 1)', bg: 'rgba(54, 162, 235, 0.2)' },
+                { border: 'rgba(75, 192, 192, 1)', bg: 'rgba(75, 192, 192, 0.2)' },
+                { border: 'rgba(255, 159, 64, 1)', bg: 'rgba(255, 159, 64, 0.2)' },
+                { border: 'rgba(153, 102, 255, 1)', bg: 'rgba(153, 102, 255, 0.2)' },
+            ];
+            
+            let colorIndex = 0;
+            Object.keys(lineGroups).sort().forEach(lineName => {
+                const lineData = lineGroups[lineName].sort((a, b) => a['第几天'] - b['第几天']);
+                
+                const maxGrowthRates = lineData.map(item => item['最大增长率']);
+                const dayLabels = lineData.map(item => `第${item['第几天']}天`);
+                
+                // 为工具提示准备额外信息
+                const metadata = lineData.map(item => ({
+                    year: item['最大值年份'],
+                    date: item['最大值日期'],
+                    flow: item['最大值客流']
+                }));
+                
+                const color = colors[colorIndex % colors.length];
+                colorIndex++;
+                
+                datasets.push({
+                    label: lineName,
+                    data: maxGrowthRates,
+                    borderColor: color.border,
+                    backgroundColor: color.bg,
+                    borderWidth: 4,
+                    pointRadius: 7,
+                    pointHoverRadius: 10,
+                    pointBackgroundColor: color.border,
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    tension: 0.4,
+                    fill: true,
+                    metadata: metadata  // 保存元数据
+                });
+            });
+            
+            // 获取X轴标签（第1天、第2天...）
+            const maxDays = Math.max(...maxGrowthData.map(item => item['第几天']));
+            const dayLabels = Array.from({length: maxDays}, (_, i) => `第${i + 1}天`);
+            
+            // 创建图表
+            const ctx = document.getElementById('maxGrowthChart').getContext('2d');
+            maxGrowthChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: dayLabels,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    aspectRatio: 2.5,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `🏆 ${metricName}历年最优表现曲线`,
+                            font: {
+                                size: 20,
+                                weight: 'bold'
+                            },
+                            padding: 20,
+                            color: '#667eea'
+                        },
+                        subtitle: {
+                            display: true,
+                            text: '每天显示历年中增长率最高的数值',
+                            font: {
+                                size: 14
+                            },
+                            padding: 10,
+                            color: '#666'
+                        },
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                font: {
+                                    size: 13
+                                },
+                                padding: 15,
+                                usePointStyle: true
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                            padding: 15,
+                            titleFont: {
+                                size: 15,
+                                weight: 'bold'
+                            },
+                            bodyFont: {
+                                size: 13
+                            },
+                            callbacks: {
+                                label: function(context) {
+                                    const datasetIndex = context.datasetIndex;
+                                    const dataIndex = context.dataIndex;
+                                    const dataset = context.chart.data.datasets[datasetIndex];
+                                    const meta = dataset.metadata[dataIndex];
+                                    
+                                    return [
+                                        `${dataset.label}`,
+                                        `最大增长率: ${context.parsed.y.toFixed(2)}%`,
+                                        `来自: ${meta.year}年 (${meta.date})`,
+                                        `当日客流: ${meta.flow.toLocaleString('zh-CN')}`
+                                    ];
+                                },
+                                title: function(context) {
+                                    return context[0].label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            title: {
+                                display: true,
+                                text: '增长率 (%)',
+                                font: {
+                                    size: 15,
+                                    weight: 'bold'
+                                },
+                                color: '#667eea'
+                            },
+                            grid: {
+                                color: 'rgba(102, 126, 234, 0.1)'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toFixed(1) + '%';
+                                },
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: '对比期（按天数计）',
+                                font: {
+                                    size: 15,
+                                    weight: 'bold'
+                                },
+                                color: '#667eea'
+                            },
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            
+            console.log('最大增长率曲线创建成功');
+        }
+        
+        function drawGrowthTimeSeriesChart(growthData, metricName) {
+            console.log('开始绘制时间序列图表, 数据:', growthData);
+            
+            // 检查Chart.js是否加载
+            if (typeof Chart === 'undefined') {
+                console.error('Chart.js 未加载');
+                alert('图表库加载失败，请刷新页面重试');
+                return;
+            }
+            
+            // 销毁旧图表
+            if (growthChartInstance) {
+                growthChartInstance.destroy();
+            }
+            
+            // 按线路和年份分组
+            const lineYearGroups = {};
+            growthData.forEach(item => {
+                const lineName = item['线路名称'] || '未知线路';
+                const year = item['年份'] || '未知';
+                const key = `${lineName} (${year}年)`;
+                
+                if (!lineYearGroups[key]) {
+                    lineYearGroups[key] = {
+                        lineName: lineName,
+                        year: year,
+                        data: []
+                    };
+                }
+                lineYearGroups[key].data.push(item);
+            });
+            
+            // 获取所有日期（仅月-日部分，用于X轴）
+            const dates = [...new Set(growthData.map(item => item['日期'].substring(4)))].sort(); // MMDD格式
+            
+            // 格式化日期为 MM-DD
+            const formatDateLabel = (mmdd) => {
+                return `${mmdd.substring(0, 2)}-${mmdd.substring(2, 4)}`;
+            };
+            
+            const dateLabels = dates.map(formatDateLabel);
+            
+            // 为每条线路的每年创建数据集
+            const datasets = [];
+            const baseColors = [
+                { border: 'rgba(102, 126, 234, 1)', bg: 'rgba(102, 126, 234, 0.1)' },
+                { border: 'rgba(255, 159, 64, 1)', bg: 'rgba(255, 159, 64, 0.1)' },
+                { border: 'rgba(72, 187, 120, 1)', bg: 'rgba(72, 187, 120, 0.1)' },
+                { border: 'rgba(245, 101, 101, 1)', bg: 'rgba(245, 101, 101, 0.1)' },
+                { border: 'rgba(153, 102, 255, 1)', bg: 'rgba(153, 102, 255, 0.1)' },
+            ];
+            
+            // 线型样式（用于区分年份）
+            const lineStyles = [
+                { width: 4, dash: [] },           // 实线（当年）
+                { width: 3, dash: [5, 5] },       // 短虚线
+                { width: 3, dash: [10, 5] },      // 长虚线
+                { width: 2, dash: [2, 2] },       // 点线
+                { width: 2, dash: [10, 5, 2, 5] } // 点划线
+            ];
+            
+            let colorIndex = 0;
+            Object.keys(lineYearGroups).sort().forEach(key => {
+                const group = lineYearGroups[key];
+                const growthRates = dates.map(mmdd => {
+                    const item = group.data.find(d => d['日期'].substring(4) === mmdd);
+                    return item ? item['增长率'] : null;
+                });
+                
+                // 获取基础颜色
+                const baseColor = baseColors[colorIndex % baseColors.length];
+                
+                // 根据年份选择线型（最新年份用实线）
+                const years = [...new Set(growthData.map(item => item['年份']))].sort((a, b) => b - a);
+                const yearIndex = years.indexOf(group.year);
+                const lineStyle = lineStyles[yearIndex % lineStyles.length];
+                
+                datasets.push({
+                    label: key,
+                    data: growthRates,
+                    borderColor: baseColor.border,
+                    backgroundColor: baseColor.bg,
+                    borderWidth: lineStyle.width,
+                    borderDash: lineStyle.dash,
+                    pointRadius: yearIndex === 0 ? 6 : 4, // 当年的点更大
+                    pointHoverRadius: 8,
+                    tension: 0.4,
+                    fill: yearIndex === 0 // 只有当年填充背景
+                });
+                
+                // 同一线路的不同年份用相同颜色
+                if (group.data.length > 0 && group.data[group.data.length - 1]['日期'].substring(4) === dates[dates.length - 1]) {
+                    colorIndex++;
+                }
+            });
+            
+            // 创建图表
+            const ctx = document.getElementById('growthChart').getContext('2d');
+            growthChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: dateLabels,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    aspectRatio: 2.5,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `${metricName}增长率多年同期对比（相对基期日均）`,
+                            font: {
+                                size: 18,
+                                weight: 'bold'
+                            },
+                            padding: 20
+                        },
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                font: {
+                                    size: 13
+                                },
+                                padding: 15,
+                                usePointStyle: true
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            padding: 12,
+                            titleFont: {
+                                size: 14,
+                                weight: 'bold'
+                            },
+                            bodyFont: {
+                                size: 13
+                            },
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    const value = context.parsed.y;
+                                    if (value !== null) {
+                                        label += (value >= 0 ? '↑ +' : '↓ ') + value.toFixed(2) + '%';
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            title: {
+                                display: true,
+                                text: '增长率 (%)',
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toFixed(1) + '%';
+                                }
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: '日期',
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            },
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            
+            console.log('时间序列图表创建成功');
+        }
+        
+        function drawGrowthChart(growthData, metricName) {
+            console.log('开始绘制图表, 数据:', growthData);
+            
+            // 检查Chart.js是否加载
+            if (typeof Chart === 'undefined') {
+                console.error('Chart.js 未加载');
+                alert('图表库加载失败，请刷新页面重试');
+                return;
+            }
+            
+            // 销毁旧图表
+            if (growthChartInstance) {
+                growthChartInstance.destroy();
+            }
+            
+            // 准备图表数据
+            const labels = growthData.map(item => item.F_LINENAME || '未知线路');
+            const growthRates = growthData.map(item => item['增长率']);
+            const baseAverages = growthData.map(item => item['基期平均']);
+            const compareAverages = growthData.map(item => item['对比期平均']);
+            
+            console.log('图表标签:', labels);
+            console.log('增长率:', growthRates);
+            
+            // 根据增长率设置颜色
+            const backgroundColor = growthRates.map(rate => 
+                rate >= 0 ? 'rgba(72, 187, 120, 0.6)' : 'rgba(245, 101, 101, 0.6)'
+            );
+            const borderColor = growthRates.map(rate => 
+                rate >= 0 ? 'rgba(72, 187, 120, 1)' : 'rgba(245, 101, 101, 1)'
+            );
+            
+            // 创建图表
+            const ctx = document.getElementById('growthChart').getContext('2d');
+            growthChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '增长率 (%)',
+                        data: growthRates,
+                        backgroundColor: backgroundColor,
+                        borderColor: borderColor,
+                        borderWidth: 2,
+                        yAxisID: 'y-rate'
+                    }, {
+                        label: '基期平均',
+                        data: baseAverages,
+                        type: 'line',
+                        borderColor: 'rgba(102, 126, 234, 1)',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        borderWidth: 2,
+                        pointRadius: 5,
+                        pointHoverRadius: 7,
+                        yAxisID: 'y-value',
+                        tension: 0.4
+                    }, {
+                        label: '对比期平均',
+                        data: compareAverages,
+                        type: 'line',
+                        borderColor: 'rgba(255, 159, 64, 1)',
+                        backgroundColor: 'rgba(255, 159, 64, 0.1)',
+                        borderWidth: 2,
+                        pointRadius: 5,
+                        pointHoverRadius: 7,
+                        yAxisID: 'y-value',
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    aspectRatio: 2,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `${metricName}增长率分析`,
+                            font: {
+                                size: 18,
+                                weight: 'bold'
+                            },
+                            padding: 20
+                        },
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                font: {
+                                    size: 12
+                                },
+                                padding: 15,
+                                usePointStyle: true
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            padding: 12,
+                            titleFont: {
+                                size: 14,
+                                weight: 'bold'
+                            },
+                            bodyFont: {
+                                size: 13
+                            },
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.datasetIndex === 0) {
+                                        // 增长率
+                                        label += context.parsed.y.toFixed(2) + '%';
+                                    } else {
+                                        // 平均值
+                                        label += context.parsed.y.toLocaleString('zh-CN');
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        'y-rate': {
+                            type: 'linear',
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: '增长率 (%)',
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            },
+                            grid: {
+                                drawOnChartArea: true,
+                                color: 'rgba(0, 0, 0, 0.05)'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toFixed(1) + '%';
+                                }
+                            }
+                        },
+                        'y-value': {
+                            type: 'linear',
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: metricName,
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            },
+                            grid: {
+                                drawOnChartArea: false
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toLocaleString('zh-CN');
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            
+            console.log('图表创建成功');
+        }
+        
+        // ============ 预测功能 ============
+        
+        // 设置预测日期的默认值
+        const predictStartInput = document.getElementById('predictStartDate');
+        const predictEndInput = document.getElementById('predictEndDate');
+        if (predictStartInput && predictEndInput) {
+            // 默认预测本月1号开始的5天（这样可以和实际数据对比）
+            const today = new Date();
+            const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+            predictStartInput.valueAsDate = thisMonthStart;
+            
+            const defaultEndDate = new Date(thisMonthStart);
+            defaultEndDate.setDate(defaultEndDate.getDate() + 4);
+            predictEndInput.valueAsDate = defaultEndDate;
+            
+            // 初始化基期显示
+            updatePredictBasePeriod();
+            updatePredictMultiYearConfig();
+        }
+        
+        // 监听预测开始日期变化，自动设置结束日期
+        document.getElementById('predictStartDate')?.addEventListener('change', function() {
+            const startDate = this.valueAsDate;
+            if (startDate) {
+                // 默认设置为5天后
+                const endDate = new Date(startDate);
+                endDate.setDate(endDate.getDate() + 4);
+                const endDateInput = document.getElementById('predictEndDate');
+                endDateInput.valueAsDate = endDate;
+                
+                // 添加高亮动画效果
+                endDateInput.classList.add('auto-filled');
+                setTimeout(() => {
+                    endDateInput.classList.remove('auto-filled');
+                }, 800);
+            }
+            
+            updatePredictBasePeriod();
+            updatePredictMultiYearConfig();
+            // 日期变化时自动检查数据可用性
+            checkPredictDataAvailability();
+        });
+        
+        document.getElementById('predictEndDate')?.addEventListener('change', function() {
+            updatePredictBasePeriod();
+            updatePredictMultiYearConfig();
+            // 日期变化时自动检查数据可用性
+            checkPredictDataAvailability();
+        });
+        
+        // 页面加载完成后自动检查一次
+        if (predictStartInput && predictEndInput && predictStartInput.value && predictEndInput.value) {
+            checkPredictDataAvailability();
+        }
+        
+        function checkPredictDataAvailability() {
+            const metricType = document.getElementById('predictMetricType').value;
+            const startDate = document.getElementById('predictStartDate').value;
+            const endDate = document.getElementById('predictEndDate').value;
+            
+            if (!startDate || !endDate) {
+                document.getElementById('predictDataCheck').style.display = 'none';
+                return;
+            }
+            
+            const checkDiv = document.getElementById('predictDataCheck');
+            const iconDiv = document.getElementById('predictDataCheckIcon');
+            const textDiv = document.getElementById('predictDataCheckText');
+            
+            // 显示检查中状态
+            checkDiv.style.display = 'block';
+            checkDiv.style.background = '#f7fafc';
+            checkDiv.style.border = '1px solid #e2e8f0';
+            iconDiv.textContent = '⏳';
+            textDiv.innerHTML = '<span style="color: #666;">正在检查数据可用性...</span>';
+            
+            fetch('/check_data_availability', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    metric_type: metricType,
+                    start_date: startDate,
+                    end_date: endDate
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    if (data.has_data) {
+                        // 有数据
+                        checkDiv.style.background = '#f0fdf4';
+                        checkDiv.style.border = '1px solid #86efac';
+                        iconDiv.textContent = '✅';
+                        textDiv.innerHTML = `<strong style="color: #16a34a;">${data.message}</strong>`;
+                    } else {
+                        // 无数据
+                        checkDiv.style.background = '#fff7ed';
+                        checkDiv.style.border = '1px solid #fdba74';
+                        iconDiv.textContent = '⚠️';
+                        textDiv.innerHTML = `<span style="color: #ea580c;">${data.message}</span>`;
+                    }
+                } else {
+                    checkDiv.style.background = '#fef2f2';
+                    checkDiv.style.border = '1px solid #fca5a5';
+                    iconDiv.textContent = '❌';
+                    textDiv.innerHTML = `<span style="color: #dc2626;">检查失败：${data.error}</span>`;
+                }
+            })
+            .catch(error => {
+                checkDiv.style.background = '#fef2f2';
+                checkDiv.style.border = '1px solid #fca5a5';
+                iconDiv.textContent = '❌';
+                textDiv.innerHTML = `<span style="color: #dc2626;">检查失败：${error.message}</span>`;
+            });
+        }
+        
+        function togglePredictMultiYearConfig() {
+            const inputs = document.getElementById('predictMultiYearInputs');
+            const icon = document.getElementById('predictMultiYearExpandIcon');
+            
+            if (inputs.classList.contains('show')) {
+                inputs.classList.remove('show');
+                icon.classList.remove('expanded');
+            } else {
+                inputs.classList.add('show');
+                icon.classList.add('expanded');
+            }
+        }
+        
+        function updatePredictMultiYearConfig() {
+            const historyYears = parseInt(document.getElementById('historyYears').value);
+            const section = document.getElementById('predictMultiYearSection');
+            const container = document.getElementById('predictYearConfigContainer');
+            
+            if (historyYears === 0) {
+                section.style.display = 'none';
+                return;
+            }
+            
+            section.style.display = 'block';
+            container.innerHTML = '';
+            
+            const predictStart = document.getElementById('predictStartDate').value;
+            const predictEnd = document.getElementById('predictEndDate').value;
+            
+            if (!predictStart || !predictEnd) {
+                container.innerHTML = '<div class="metric-info">请先选择预测日期</div>';
+                return;
+            }
+            
+            const predictYear = new Date(predictStart).getFullYear();
+            const predictMonth = new Date(predictStart).getMonth();
+            
+            // 为每个历史年份生成配置
+            for (let i = 1; i <= historyYears; i++) {
+                const historyYear = predictYear - i;
+                
+                // 参考期（同期日期）
+                const refStart = predictStart.replace(/^\d{4}/, historyYear);
+                const refEnd = predictEnd.replace(/^\d{4}/, historyYear);
+                
+                // 基期（该年的上月）
+                let baseMonth = predictMonth - 1;
+                let baseYear = historyYear;
+                if (baseMonth < 0) {
+                    baseMonth = 11;
+                    baseYear--;
+                }
+                
+                const baseStart = new Date(baseYear, baseMonth, 1);
+                const baseEnd = new Date(baseYear, baseMonth + 1, 0);
+                const historyBaseStart = formatDateLocal(baseStart);
+                const historyBaseEnd = formatDateLocal(baseEnd);
+                
+                const yearConfig = document.createElement('div');
+                yearConfig.className = 'year-config-item';
+                yearConfig.innerHTML = `
+                    <div class="year-label">${historyYear}年参考数据（前${i}年）</div>
+                    <div class="date-range">
+                        <div class="form-group">
+                            <label for="predictYear${historyYear}RefStart">参考期开始</label>
+                            <input type="date" id="predictYear${historyYear}RefStart" value="${refStart}">
+                        </div>
+                        <div class="form-group">
+                            <label for="predictYear${historyYear}RefEnd">参考期结束</label>
+                            <input type="date" id="predictYear${historyYear}RefEnd" value="${refEnd}">
+                        </div>
+                    </div>
+                    <div class="date-range" style="margin-top: 10px;">
+                        <div class="form-group">
+                            <label for="predictYear${historyYear}BaseStart">基期开始</label>
+                            <input type="date" id="predictYear${historyYear}BaseStart" value="${historyBaseStart}">
+                        </div>
+                        <div class="form-group">
+                            <label for="predictYear${historyYear}BaseEnd">基期结束</label>
+                            <input type="date" id="predictYear${historyYear}BaseEnd" value="${historyBaseEnd}">
+                        </div>
+                    </div>
+                `;
+                container.appendChild(yearConfig);
+            }
+        }
+        
+        function updatePredictBasePeriod() {
+            const predictStart = document.getElementById('predictStartDate').value;
+            const displayElement = document.getElementById('predictBasePeriodDisplay');
+            
+            if (!predictStart) {
+                displayElement.textContent = '请先选择预测日期';
+                return;
+            }
+            
+            const predictDate = new Date(predictStart);
+            const predictYear = predictDate.getFullYear();
+            const predictMonth = predictDate.getMonth();
+            
+            let baseMonth = predictMonth - 1;
+            let baseYear = predictYear;
+            if (baseMonth < 0) {
+                baseMonth = 11;
+                baseYear--;
+            }
+            
+            const baseStart = new Date(baseYear, baseMonth, 1);
+            const baseEnd = new Date(baseYear, baseMonth + 1, 0);
+            const baseStartDate = formatDateLocal(baseStart);
+            const baseEndDate = formatDateLocal(baseEnd);
+            const days = baseEnd.getDate();
+            
+            const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+            displayElement.textContent = `${baseStartDate} 至 ${baseEndDate} （${baseYear}年${monthNames[baseMonth]}，共${days}天）`;
+        }
+        
+        function predictFlow() {
+            const metricType = document.getElementById('predictMetricType').value;
+            const predictStart = document.getElementById('predictStartDate').value;
+            const predictEnd = document.getElementById('predictEndDate').value;
+            const historyYears = parseInt(document.getElementById('historyYears').value);
+            
+            if (!predictStart || !predictEnd) {
+                showPredictError('请选择预测日期范围');
+                return;
+            }
+            
+            if (new Date(predictStart) > new Date(predictEnd)) {
+                showPredictError('开始日期不能晚于结束日期');
+                return;
+            }
+            
+            // 检查是否使用自定义配置
+            let customConfigs = null;
+            const inputs = document.getElementById('predictMultiYearInputs');
+            if (inputs && inputs.classList.contains('show')) {
+                customConfigs = {};
+                const predictYear = new Date(predictStart).getFullYear();
+                
+                for (let i = 1; i <= historyYears; i++) {
+                    const historyYear = predictYear - i;
+                    const refStart = document.getElementById(`predictYear${historyYear}RefStart`);
+                    const refEnd = document.getElementById(`predictYear${historyYear}RefEnd`);
+                    const baseStart = document.getElementById(`predictYear${historyYear}BaseStart`);
+                    const baseEnd = document.getElementById(`predictYear${historyYear}BaseEnd`);
+                    
+                    if (refStart && refEnd && baseStart && baseEnd) {
+                        customConfigs[historyYear] = {
+                            ref_start: refStart.value,
+                            ref_end: refEnd.value,
+                            base_start: baseStart.value,
+                            base_end: baseEnd.value
+                        };
+                    }
+                }
+            }
+            
+            const predictBtn = document.getElementById('predictBtn');
+            const loading = document.getElementById('predictLoading');
+            
+            predictBtn.disabled = true;
+            predictBtn.innerHTML = '<span>⏳</span><span>预测中...</span>';
+            loading.classList.add('show');
+            
+            const requestData = {
+                metric_type: metricType,
+                predict_start: predictStart,
+                predict_end: predictEnd,
+                history_years: historyYears
+            };
+            
+            if (customConfigs && Object.keys(customConfigs).length > 0) {
+                requestData.custom_configs = customConfigs;
+            }
+            
+            fetch('/predict_flow', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                loading.classList.remove('show');
+                predictBtn.disabled = false;
+                predictBtn.innerHTML = '<span>🔮</span><span>开始预测</span>';
+                
+                if (data.success) {
+                    displayPredictResults(data);
+                } else {
+                    showPredictError(data.error || '预测失败');
+                }
+            })
+            .catch(error => {
+                loading.classList.remove('show');
+                predictBtn.disabled = false;
+                predictBtn.innerHTML = '<span>🔮</span><span>开始预测</span>';
+                showPredictError('网络错误: ' + error.message);
+            });
+        }
+        
+        function showPredictError(message) {
+            const errorDiv = document.getElementById('predictErrorMessage');
+            errorDiv.textContent = '❌ ' + message;
+            errorDiv.classList.add('show');
+            setTimeout(() => {
+                errorDiv.classList.remove('show');
+            }, 5000);
+        }
+        
+        function togglePredictDetails() {
+            const content = document.getElementById('predictDetailsContent');
+            const icon = document.getElementById('predictDetailsExpandIcon');
+            
+            if (content && icon) {
+                if (content.classList.contains('show')) {
+                    content.classList.remove('show');
+                    icon.classList.remove('expanded');
+                } else {
+                    content.classList.add('show');
+                    icon.classList.add('expanded');
+                }
+            }
+        }
+        
+        function displayPredictResults(data) {
+            console.log('显示预测结果:', data);
+            console.log('has_actual =', data.has_actual);
+            console.log('predictions 总数 =', data.predictions.length);
+            
+            // 统计有准确率的记录
+            const withAccuracy = data.predictions.filter(p => p['准确率'] !== null && p['准确率'] !== undefined);
+            console.log('有准确率的记录数 =', withAccuracy.length);
+            if (withAccuracy.length > 0) {
+                console.log('第一条有准确率的记录:', withAccuracy[0]);
+            }
+            
+            const resultsPanel = document.getElementById('predictResultsPanel');
+            const recordCount = document.getElementById('predictRecordCount');
+            const accuracyPanel = document.getElementById('predictAccuracyPanel');
+            const accuracyGrid = document.getElementById('predictAccuracyGrid');
+            const dataContainer = document.getElementById('predictDataContainer');
+            
+            // 清空容器
+            dataContainer.innerHTML = '';
+            accuracyGrid.innerHTML = '';
+            
+            // 显示记录数
+            recordCount.textContent = `${data.predictions.length} 条预测`;
+            
+            // 添加说明信息
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'metric-info';
+            infoDiv.style.marginBottom = '20px';
+            infoDiv.innerHTML = `
+                预测日期：${data.predict_period}<br>
+                参考历史：前${data.history_years}年同期最优增长率
+                ${data.has_actual ? '<br><strong style="color: #48bb78;">✓ 已找到实际数据，准确率对比如下</strong>' : '<br><strong style="color: #ff9800;">⚠ 暂无实际数据，仅显示预测值</strong>'}
+            `;
+            dataContainer.appendChild(infoDiv);
+            
+            // 添加"查看计算过程"展开区域
+            if (data.history_details && data.history_details.length > 0) {
+                const detailsSection = document.createElement('div');
+                detailsSection.className = 'multi-year-section';
+                detailsSection.style.marginBottom = '20px';
+                
+                const detailsHeader = document.createElement('div');
+                detailsHeader.className = 'multi-year-header';
+                detailsHeader.onclick = function() { togglePredictDetails(); };
+                detailsHeader.innerHTML = `
+                    <div class="multi-year-title">
+                        <span>🔍</span>
+                        <span>查看计算过程（历年数据详情）</span>
+                    </div>
+                    <div class="expand-icon" id="predictDetailsExpandIcon">🔽</div>
+                `;
+                detailsSection.appendChild(detailsHeader);
+                
+                const detailsContent = document.createElement('div');
+                detailsContent.className = 'multi-year-inputs';
+                detailsContent.id = 'predictDetailsContent';
+                
+                // 为每一年生成详情
+                data.history_details.forEach(yearDetail => {
+                    const yearDiv = document.createElement('div');
+                    yearDiv.className = 'year-config-item';
+                    yearDiv.style.marginBottom = '15px';
+                    
+                    let html = `
+                        <div class="year-label">${yearDetail.year}年历史数据</div>
+                        <div class="metric-info" style="margin: 10px 0;">
+                            参考期：${yearDetail.ref_period}<br>
+                            基期：${yearDetail.base_period}
+                        </div>
+                    `;
+                    
+                    if (yearDetail.line_stats && yearDetail.line_stats.length > 0) {
+                        html += '<div style="overflow-x: auto;"><table style="width: 100%; border-collapse: collapse; font-size: 13px;">';
+                        html += '<thead><tr style="background-color: #f7fafc;">';
+                        html += '<th style="padding: 8px; text-align: left; border: 1px solid #e2e8f0;">线路</th>';
+                        html += '<th style="padding: 8px; text-align: right; border: 1px solid #e2e8f0;">基期日均</th>';
+                        html += '<th style="padding: 8px; text-align: right; border: 1px solid #e2e8f0;">平均增长率</th>';
+                        html += '<th style="padding: 8px; text-align: right; border: 1px solid #e2e8f0;">最大增长率</th>';
+                        html += '</tr></thead><tbody>';
+                        
+                        yearDetail.line_stats.forEach(stat => {
+                            const avgColor = stat.avg_growth >= 0 ? '#48bb78' : '#f56565';
+                            const maxColor = stat.max_growth >= 0 ? '#48bb78' : '#f56565';
+                            html += `<tr>
+                                <td style="padding: 8px; border: 1px solid #e2e8f0;">${stat.line_name}</td>
+                                <td style="padding: 8px; text-align: right; border: 1px solid #e2e8f0;">${stat.base_avg.toLocaleString()}</td>
+                                <td style="padding: 8px; text-align: right; border: 1px solid #e2e8f0; color: ${avgColor}; font-weight: 600;">${stat.avg_growth.toFixed(2)}%</td>
+                                <td style="padding: 8px; text-align: right; border: 1px solid #e2e8f0; color: ${maxColor}; font-weight: 600;">${stat.max_growth.toFixed(2)}%</td>
+                            </tr>`;
+                        });
+                        
+                        html += '</tbody></table></div>';
+                    }
+                    
+                    yearDiv.innerHTML = html;
+                    detailsContent.appendChild(yearDiv);
+                });
+                
+                detailsSection.appendChild(detailsContent);
+                dataContainer.appendChild(detailsSection);
+            }
+            
+            // 如果有实际数据，显示准确率统计
+            if (data.has_actual) {
+                const predictions = data.predictions.filter(p => p['准确率'] !== null);
+                if (predictions.length > 0) {
+                    const avgAccuracy = predictions.reduce((sum, p) => sum + p['准确率'], 0) / predictions.length;
+                    
+                    // 按线路分组统计准确率
+                    const lineAccuracy = {};
+                    predictions.forEach(p => {
+                        const lineName = p['线路名称'];
+                        if (!lineAccuracy[lineName]) {
+                            lineAccuracy[lineName] = { sum: 0, count: 0 };
+                        }
+                        lineAccuracy[lineName].sum += p['准确率'];
+                        lineAccuracy[lineName].count++;
+                    });
+                    
+                    // 显示总体准确率
+                    const overallCard = document.createElement('div');
+                    overallCard.className = 'stat-card';
+                    overallCard.style.borderLeftColor = '#48bb78';
+                    overallCard.innerHTML = `
+                        <div style="font-weight: 600; color: #48bb78; margin-bottom: 8px; font-size: 16px;">总体平均准确率</div>
+                        <div style="font-size: 32px; font-weight: 700; color: #48bb78;">${avgAccuracy.toFixed(2)}%</div>
+                        <div style="font-size: 13px; color: #666; margin-top: 5px;">${predictions.length} 条数据</div>
+                    `;
+                    accuracyGrid.appendChild(overallCard);
+                    
+                    // 显示各线路准确率
+                    Object.keys(lineAccuracy).sort().forEach(lineName => {
+                        const acc = lineAccuracy[lineName];
+                        const avgAcc = acc.sum / acc.count;
+                        const card = document.createElement('div');
+                        card.className = 'stat-card';
+                        card.innerHTML = `
+                            <div style="font-weight: 600; color: #667eea; margin-bottom: 8px;">${lineName}</div>
+                            <div style="font-size: 24px; font-weight: 700; color: ${avgAcc >= 90 ? '#48bb78' : avgAcc >= 80 ? '#ff9800' : '#f56565'};">${avgAcc.toFixed(2)}%</div>
+                            <div style="font-size: 12px; color: #666; margin-top: 3px;">${acc.count} 天数据</div>
+                        `;
+                        accuracyGrid.appendChild(card);
+                    });
+                    
+                    accuracyPanel.style.display = 'block';
+                }
+            }
+            
+            // 按线路分组显示预测数据
+            const lineGroups = {};
+            data.predictions.forEach(pred => {
+                const lineName = pred['线路名称'];
+                const lineNo = pred['线路编号'];
+                if (!lineGroups[lineName]) {
+                    lineGroups[lineName] = { lineNo: lineNo, data: [] };
+                }
+                lineGroups[lineName].data.push(pred);
+            });
+            
+            // 排序：线网(0)优先
+            const sortedLines = Object.keys(lineGroups).sort((a, b) => {
+                const aNo = lineGroups[a].lineNo;
+                const bNo = lineGroups[b].lineNo;
+                if (aNo === 0) return -1;
+                if (bNo === 0) return 1;
+                return aNo - bNo;
+            });
+            
+            // 为每条线路创建卡片
+            sortedLines.forEach(lineName => {
+                const lineData = lineGroups[lineName].data.sort((a, b) => a['第几天'] - b['第几天']);
+                const lineNo = lineGroups[lineName].lineNo;
+                const isNetwork = (lineNo === 0);
+                
+                // 计算平均准确率
+                const withAccuracy = lineData.filter(d => d['准确率'] !== null);
+                const avgAccuracy = withAccuracy.length > 0 ? 
+                    withAccuracy.reduce((sum, d) => sum + d['准确率'], 0) / withAccuracy.length : null;
+                
+                const card = document.createElement('div');
+                card.className = `growth-card ${isNetwork ? 'network' : ''}`;
+                
+                let cardHTML = `
+                    <div class="growth-card-header">
+                        <div class="growth-line-name">
+                            ${isNetwork ? '🌐 ' : ''}${lineName}${isNetwork ? '（线网总体）' : ''}
+                        </div>
+                        ${avgAccuracy !== null ? `
+                            <div style="background: ${avgAccuracy >= 90 ? '#48bb78' : avgAccuracy >= 80 ? '#ff9800' : '#f56565'}; color: white; padding: 8px 16px; border-radius: 20px; font-weight: 600;">
+                                准确率: ${avgAccuracy.toFixed(2)}%
+                            </div>
+                        ` : ''}
+                    </div>
+                    
+                    <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+                        <thead>
+                            <tr style="background: #f8f9fa;">
+                                <th style="padding: 10px; text-align: center; border-bottom: 2px solid #e0e0e0;">日期</th>
+                                <th style="padding: 10px; text-align: right; border-bottom: 2px solid #e0e0e0;">基期日均</th>
+                                <th style="padding: 10px; text-align: right; border-bottom: 2px solid #e0e0e0;">最优增长率</th>
+                                <th style="padding: 10px; text-align: center; border-bottom: 2px solid #e0e0e0;">来源年份</th>
+                                <th style="padding: 10px; text-align: right; border-bottom: 2px solid #e0e0e0;">预测客流</th>
+                                ${data.has_actual ? `
+                                    <th style="padding: 10px; text-align: right; border-bottom: 2px solid #e0e0e0;">实际客流</th>
+                                    <th style="padding: 10px; text-align: right; border-bottom: 2px solid #e0e0e0;">误差</th>
+                                    <th style="padding: 10px; text-align: right; border-bottom: 2px solid #e0e0e0;">准确率</th>
+                                ` : ''}
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                
+                lineData.forEach(pred => {
+                    const growthColor = pred['最优增长率'] >= 0 ? '#48bb78' : '#f56565';
+                    const accuracyColor = pred['准确率'] >= 90 ? '#48bb78' : pred['准确率'] >= 80 ? '#ff9800' : '#f56565';
+                    
+                    cardHTML += `
+                        <tr style="border-bottom: 1px solid #f0f0f0;">
+                            <td style="padding: 10px; text-align: center; font-weight: 600;">${pred['预测日期']}</td>
+                            <td style="padding: 10px; text-align: right;">${pred['基期日均'].toLocaleString('zh-CN')}</td>
+                            <td style="padding: 10px; text-align: right; color: ${growthColor}; font-weight: 600;">
+                                ${pred['最优增长率'] >= 0 ? '↑' : '↓'} ${Math.abs(pred['最优增长率']).toFixed(2)}%
+                            </td>
+                            <td style="padding: 10px; text-align: center; color: #667eea; font-weight: 600;">${pred['最优来源年份']}年</td>
+                            <td style="padding: 10px; text-align: right; background: #fff9e6; font-weight: 700; color: #ff9800;">
+                                ${pred['预测客流'].toLocaleString('zh-CN')}
+                            </td>
+                            ${data.has_actual ? `
+                                <td style="padding: 10px; text-align: right; font-weight: 600;">
+                                    ${pred['实际客流'] !== null ? pred['实际客流'].toLocaleString('zh-CN') : '-'}
+                                </td>
+                                <td style="padding: 10px; text-align: right; color: ${pred['误差'] > 0 ? '#f56565' : '#48bb78'}; font-weight: 600;">
+                                    ${pred['误差'] !== null ? (pred['误差'] > 0 ? '+' : '') + pred['误差'].toLocaleString('zh-CN') : '-'}
+                                </td>
+                                <td style="padding: 10px; text-align: right; background: ${pred['准确率'] >= 90 ? '#e6f7ed' : pred['准确率'] >= 80 ? '#fff9e6' : '#fee'}; font-weight: 700; color: ${accuracyColor};">
+                                    ${pred['准确率'] !== null ? pred['准确率'].toFixed(2) + '%' : '-'}
+                                </td>
+                            ` : ''}
+                        </tr>
+                    `;
+                });
+                
+                cardHTML += `
+                        </tbody>
+                    </table>
+                `;
+                
+                card.innerHTML = cardHTML;
+                dataContainer.appendChild(card);
+            });
+            
+            resultsPanel.style.display = 'block';
+            resultsPanel.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        // ============ 车站预测功能 ============
+        
+        // 设置车站预测日期的默认值
+        const stationPredictStartInput = document.getElementById('stationPredictStartDate');
+        const stationPredictEndInput = document.getElementById('stationPredictEndDate');
+        if (stationPredictStartInput && stationPredictEndInput) {
+            const today = new Date();
+            const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+            stationPredictStartInput.valueAsDate = thisMonthStart;
+            
+            const defaultEndDate = new Date(thisMonthStart);
+            defaultEndDate.setDate(defaultEndDate.getDate() + 4);
+            stationPredictEndInput.valueAsDate = defaultEndDate;
+            
+            updateStationBasePeriod();
+            updateStationMultiYearConfig();
+        }
+        
+        // 监听车站预测开始日期变化
+        document.getElementById('stationPredictStartDate')?.addEventListener('change', function() {
+            const startDate = this.valueAsDate;
+            if (startDate) {
+                const endDate = new Date(startDate);
+                endDate.setDate(endDate.getDate() + 4);
+                const endDateInput = document.getElementById('stationPredictEndDate');
+                endDateInput.valueAsDate = endDate;
+                
+                endDateInput.classList.add('auto-filled');
+                setTimeout(() => {
+                    endDateInput.classList.remove('auto-filled');
+                }, 800);
+            }
+            
+            updateStationBasePeriod();
+            updateStationMultiYearConfig();
+            checkStationDataAvailability();
+        });
+        
+        document.getElementById('stationPredictEndDate')?.addEventListener('change', function() {
+            updateStationBasePeriod();
+            updateStationMultiYearConfig();
+            checkStationDataAvailability();
+        });
+        
+        if (stationPredictStartInput && stationPredictEndInput && stationPredictStartInput.value && stationPredictEndInput.value) {
+            checkStationDataAvailability();
+        }
+        
+        function checkStationDataAvailability() {
+            const metricType = document.getElementById('stationPredictMetricType').value;
+            const startDate = document.getElementById('stationPredictStartDate').value;
+            const endDate = document.getElementById('stationPredictEndDate').value;
+            
+            if (!startDate || !endDate) {
+                document.getElementById('stationDataCheck').style.display = 'none';
+                return;
+            }
+            
+            const checkDiv = document.getElementById('stationDataCheck');
+            const iconDiv = document.getElementById('stationDataCheckIcon');
+            const textDiv = document.getElementById('stationDataCheckText');
+            
+            checkDiv.style.display = 'block';
+            checkDiv.style.background = '#f7fafc';
+            checkDiv.style.border = '1px solid #e2e8f0';
+            iconDiv.textContent = '⏳';
+            textDiv.innerHTML = '<span style="color: #666;">正在检查数据可用性...</span>';
+            
+            fetch('/check_station_data_availability', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    metric_type: metricType,
+                    start_date: startDate,
+                    end_date: endDate
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    if (data.has_data) {
+                        checkDiv.style.background = '#f0fdf4';
+                        checkDiv.style.border = '1px solid #86efac';
+                        iconDiv.textContent = '✅';
+                        textDiv.innerHTML = `<strong style="color: #16a34a;">${data.message}</strong>`;
+                    } else {
+                        checkDiv.style.background = '#fff7ed';
+                        checkDiv.style.border = '1px solid #fdba74';
+                        iconDiv.textContent = '⚠️';
+                        textDiv.innerHTML = `<span style="color: #ea580c;">${data.message}</span>`;
+                    }
+                } else {
+                    checkDiv.style.background = '#fef2f2';
+                    checkDiv.style.border = '1px solid #fca5a5';
+                    iconDiv.textContent = '❌';
+                    textDiv.innerHTML = `<span style="color: #dc2626;">检查失败：${data.error}</span>`;
+                }
+            })
+            .catch(error => {
+                checkDiv.style.background = '#fef2f2';
+                checkDiv.style.border = '1px solid #fca5a5';
+                iconDiv.textContent = '❌';
+                textDiv.innerHTML = `<span style="color: #dc2626;">检查失败：${error.message}</span>`;
+            });
+        }
+        
+        function toggleStationMultiYearConfig() {
+            const inputs = document.getElementById('stationMultiYearInputs');
+            const icon = document.getElementById('stationMultiYearExpandIcon');
+            
+            if (inputs.classList.contains('show')) {
+                inputs.classList.remove('show');
+                icon.classList.remove('expanded');
+            } else {
+                inputs.classList.add('show');
+                icon.classList.add('expanded');
+            }
+        }
+        
+        function updateStationMultiYearConfig() {
+            const historyYears = parseInt(document.getElementById('stationHistoryYears').value);
+            const section = document.getElementById('stationMultiYearSection');
+            const container = document.getElementById('stationYearConfigContainer');
+            
+            if (historyYears === 0) {
+                section.style.display = 'none';
+                return;
+            }
+            
+            section.style.display = 'block';
+            container.innerHTML = '';
+            
+            const predictStart = document.getElementById('stationPredictStartDate').value;
+            const predictEnd = document.getElementById('stationPredictEndDate').value;
+            
+            if (!predictStart || !predictEnd) {
+                container.innerHTML = '<div class="metric-info">请先选择预测日期</div>';
+                return;
+            }
+            
+            const predictYear = new Date(predictStart).getFullYear();
+            const predictMonth = new Date(predictStart).getMonth();
+            
+            for (let i = 1; i <= historyYears; i++) {
+                const historyYear = predictYear - i;
+                const refStart = predictStart.replace(/^\d{4}/, historyYear);
+                const refEnd = predictEnd.replace(/^\d{4}/, historyYear);
+                
+                let baseMonth = predictMonth - 1;
+                let baseYear = historyYear;
+                if (baseMonth < 0) {
+                    baseMonth = 11;
+                    baseYear--;
+                }
+                
+                const baseStart = new Date(baseYear, baseMonth, 1);
+                const baseEnd = new Date(baseYear, baseMonth + 1, 0);
+                const historyBaseStart = formatDateLocal(baseStart);
+                const historyBaseEnd = formatDateLocal(baseEnd);
+                
+                const yearConfig = document.createElement('div');
+                yearConfig.className = 'year-config-item';
+                yearConfig.innerHTML = `
+                    <div class="year-label">${historyYear}年参考数据（前${i}年）</div>
+                    <div class="date-range">
+                        <div class="form-group">
+                            <label for="stationYear${historyYear}RefStart">参考期开始</label>
+                            <input type="date" id="stationYear${historyYear}RefStart" value="${refStart}">
+                        </div>
+                        <div class="form-group">
+                            <label for="stationYear${historyYear}RefEnd">参考期结束</label>
+                            <input type="date" id="stationYear${historyYear}RefEnd" value="${refEnd}">
+                        </div>
+                    </div>
+                    <div class="date-range" style="margin-top: 10px;">
+                        <div class="form-group">
+                            <label for="stationYear${historyYear}BaseStart">基期开始</label>
+                            <input type="date" id="stationYear${historyYear}BaseStart" value="${historyBaseStart}">
+                        </div>
+                        <div class="form-group">
+                            <label for="stationYear${historyYear}BaseEnd">基期结束</label>
+                            <input type="date" id="stationYear${historyYear}BaseEnd" value="${historyBaseEnd}">
+                        </div>
+                    </div>
+                `;
+                container.appendChild(yearConfig);
+            }
+        }
+        
+        function updateStationBasePeriod() {
+            const predictStart = document.getElementById('stationPredictStartDate').value;
+            const displayElement = document.getElementById('stationBasePeriodDisplay');
+            
+            if (!predictStart) {
+                displayElement.textContent = '请先选择预测日期';
+                return;
+            }
+            
+            const predictDate = new Date(predictStart);
+            const predictYear = predictDate.getFullYear();
+            const predictMonth = predictDate.getMonth();
+            
+            let baseMonth = predictMonth - 1;
+            let baseYear = predictYear;
+            if (baseMonth < 0) {
+                baseMonth = 11;
+                baseYear--;
+            }
+            
+            const baseStart = new Date(baseYear, baseMonth, 1);
+            const baseEnd = new Date(baseYear, baseMonth + 1, 0);
+            const baseStartDate = formatDateLocal(baseStart);
+            const baseEndDate = formatDateLocal(baseEnd);
+            const days = baseEnd.getDate();
+            
+            const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+            displayElement.textContent = `${baseStartDate} 至 ${baseEndDate} （${baseYear}年${monthNames[baseMonth]}，共${days}天）`;
+        }
+        
+        function predictStationFlow() {
+            const metricType = document.getElementById('stationPredictMetricType').value;
+            const predictStart = document.getElementById('stationPredictStartDate').value;
+            const predictEnd = document.getElementById('stationPredictEndDate').value;
+            const historyYears = parseInt(document.getElementById('stationHistoryYears').value);
+            
+            if (!predictStart || !predictEnd) {
+                showStationPredictError('请选择预测日期范围');
+                return;
+            }
+            
+            if (new Date(predictStart) > new Date(predictEnd)) {
+                showStationPredictError('开始日期不能晚于结束日期');
+                return;
+            }
+            
+            let customConfigs = null;
+            const inputs = document.getElementById('stationMultiYearInputs');
+            if (inputs && inputs.classList.contains('show')) {
+                customConfigs = {};
+                const predictYear = new Date(predictStart).getFullYear();
+                
+                for (let i = 1; i <= historyYears; i++) {
+                    const historyYear = predictYear - i;
+                    const refStart = document.getElementById(`stationYear${historyYear}RefStart`);
+                    const refEnd = document.getElementById(`stationYear${historyYear}RefEnd`);
+                    const baseStart = document.getElementById(`stationYear${historyYear}BaseStart`);
+                    const baseEnd = document.getElementById(`stationYear${historyYear}BaseEnd`);
+                    
+                    if (refStart && refEnd && baseStart && baseEnd) {
+                        customConfigs[historyYear] = {
+                            ref_start: refStart.value,
+                            ref_end: refEnd.value,
+                            base_start: baseStart.value,
+                            base_end: baseEnd.value
+                        };
+                    }
+                }
+            }
+            
+            const predictBtn = document.getElementById('stationPredictBtn');
+            const loading = document.getElementById('stationPredictLoading');
+            
+            predictBtn.disabled = true;
+            predictBtn.innerHTML = '<span>⏳</span><span>预测中...</span>';
+            loading.classList.add('show');
+            
+            const requestData = {
+                metric_type: metricType,
+                predict_start: predictStart,
+                predict_end: predictEnd,
+                history_years: historyYears
+            };
+            
+            if (customConfigs && Object.keys(customConfigs).length > 0) {
+                requestData.custom_configs = customConfigs;
+            }
+            
+            console.log('发送车站预测请求:', requestData);
+            
+            fetch('/predict_station_flow', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestData)
+            })
+            .then(response => {
+                console.log('收到响应:', response.status, response.statusText);
+                if (!response.ok) {
+                    return response.text().then(text => {
+                        console.error('响应内容:', text);
+                        throw new Error(`HTTP ${response.status}: ${text.substring(0, 200)}`);
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('解析成功:', data);
+                loading.classList.remove('show');
+                predictBtn.disabled = false;
+                predictBtn.innerHTML = '<span>🚉</span><span>开始预测</span>';
+                
+                if (data.success) {
+                    displayStationPredictResults(data);
+                } else {
+                    showStationPredictError(data.error || '预测失败');
+                }
+            })
+            .catch(error => {
+                console.error('请求失败:', error);
+                loading.classList.remove('show');
+                predictBtn.disabled = false;
+                predictBtn.innerHTML = '<span>🚉</span><span>开始预测</span>';
+                showStationPredictError('网络错误: ' + error.message);
+            });
+        }
+        
+        function showStationPredictError(message) {
+            const errorDiv = document.getElementById('stationPredictErrorMessage');
+            errorDiv.textContent = '❌ ' + message;
+            errorDiv.classList.add('show');
+            setTimeout(() => {
+                errorDiv.classList.remove('show');
+            }, 5000);
+        }
+        
+        function displayStationPredictResults(data) {
+            console.log('显示车站预测结果:', data);
+            
+            const resultsPanel = document.getElementById('stationPredictResultsPanel');
+            const recordCount = document.getElementById('stationPredictRecordCount');
+            const accuracyPanel = document.getElementById('stationAccuracyPanel');
+            const accuracyGrid = document.getElementById('stationAccuracyGrid');
+            const dataContainer = document.getElementById('stationDataContainer');
+            
+            dataContainer.innerHTML = '';
+            accuracyGrid.innerHTML = '';
+            
+            recordCount.textContent = `${data.predictions.length} 条预测`;
+            
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'metric-info';
+            infoDiv.style.marginBottom = '20px';
+            infoDiv.innerHTML = `
+                预测日期：${data.predict_period}<br>
+                参考历史：前${data.history_years}年同期车站最优增长率
+                ${data.has_actual ? '<br><strong style="color: #48bb78;">✓ 已找到实际数据，准确率对比如下</strong>' : '<br><strong style="color: #ff9800;">⚠ 暂无实际数据，仅显示预测值</strong>'}
+            `;
+            dataContainer.appendChild(infoDiv);
+            
+            // 添加查看计算过程的展开区域
+            if (data.history_details && data.history_details.length > 0) {
+                const detailsSection = document.createElement('div');
+                detailsSection.className = 'multi-year-section';
+                detailsSection.style.marginBottom = '20px';
+                
+                const detailsHeader = document.createElement('div');
+                detailsHeader.className = 'multi-year-header';
+                detailsHeader.onclick = function() { toggleStationPredictDetails(); };
+                detailsHeader.innerHTML = `
+                    <div class="multi-year-title">
+                        <span>🔍</span>
+                        <span>查看计算过程（历年车站数据详情）</span>
+                    </div>
+                    <div class="expand-icon" id="stationDetailsExpandIcon">🔽</div>
+                `;
+                detailsSection.appendChild(detailsHeader);
+                
+                const detailsContent = document.createElement('div');
+                detailsContent.className = 'multi-year-inputs';
+                detailsContent.id = 'stationDetailsContent';
+                
+                data.history_details.forEach(yearDetail => {
+                    const yearDiv = document.createElement('div');
+                    yearDiv.className = 'year-config-item';
+                    yearDiv.style.marginBottom = '15px';
+                    
+                    let html = `
+                        <div class="year-label">${yearDetail.year}年历史数据</div>
+                        <div class="metric-info" style="margin: 10px 0;">
+                            参考期：${yearDetail.ref_period}<br>
+                            基期：${yearDetail.base_period}
+                        </div>
+                    `;
+                    
+                    if (yearDetail.line_stats && yearDetail.line_stats.length > 0) {
+                        html += '<div style="overflow-x: auto;"><table style="width: 100%; border-collapse: collapse; font-size: 13px;">';
+                        html += '<thead><tr style="background-color: #f7fafc;">';
+                        html += '<th style="padding: 8px; text-align: left; border: 1px solid #e2e8f0;">车站</th>';
+                        html += '<th style="padding: 8px; text-align: right; border: 1px solid #e2e8f0;">基期日均</th>';
+                        html += '<th style="padding: 8px; text-align: right; border: 1px solid #e2e8f0;">平均增长率</th>';
+                        html += '<th style="padding: 8px; text-align: right; border: 1px solid #e2e8f0;">最大增长率</th>';
+                        html += '</tr></thead><tbody>';
+                        
+                        yearDetail.line_stats.forEach(stat => {
+                            const avgColor = stat.avg_growth >= 0 ? '#48bb78' : '#f56565';
+                            const maxColor = stat.max_growth >= 0 ? '#48bb78' : '#f56565';
+                            html += `<tr>
+                                <td style="padding: 8px; border: 1px solid #e2e8f0;">${stat.line_name}</td>
+                                <td style="padding: 8px; text-align: right; border: 1px solid #e2e8f0;">${stat.base_avg.toLocaleString()}</td>
+                                <td style="padding: 8px; text-align: right; border: 1px solid #e2e8f0; color: ${avgColor}; font-weight: 600;">${stat.avg_growth.toFixed(2)}%</td>
+                                <td style="padding: 8px; text-align: right; border: 1px solid #e2e8f0; color: ${maxColor}; font-weight: 600;">${stat.max_growth.toFixed(2)}%</td>
+                            </tr>`;
+                        });
+                        
+                        html += '</tbody></table></div>';
+                    }
+                    
+                    yearDiv.innerHTML = html;
+                    detailsContent.appendChild(yearDiv);
+                });
+                
+                detailsSection.appendChild(detailsContent);
+                dataContainer.appendChild(detailsSection);
+            }
+            
+            // 准确率统计
+            if (data.has_actual) {
+                const predictions = data.predictions.filter(p => p['准确率'] !== null);
+                if (predictions.length > 0) {
+                    const avgAccuracy = predictions.reduce((sum, p) => sum + p['准确率'], 0) / predictions.length;
+                    
+                    const stationAccuracy = {};
+                    predictions.forEach(p => {
+                        const stationName = p['车站名称'];
+                        if (!stationAccuracy[stationName]) {
+                            stationAccuracy[stationName] = { sum: 0, count: 0 };
+                        }
+                        stationAccuracy[stationName].sum += p['准确率'];
+                        stationAccuracy[stationName].count++;
+                    });
+                    
+                    const overallCard = document.createElement('div');
+                    overallCard.className = 'stat-card';
+                    overallCard.style.borderLeftColor = '#48bb78';
+                    overallCard.innerHTML = `
+                        <div style="font-weight: 600; color: #48bb78; margin-bottom: 8px; font-size: 16px;">总体平均准确率</div>
+                        <div style="font-size: 32px; font-weight: 700; color: #48bb78;">${avgAccuracy.toFixed(2)}%</div>
+                        <div style="font-size: 13px; color: #666; margin-top: 5px;">${predictions.length} 条数据</div>
+                    `;
+                    accuracyGrid.appendChild(overallCard);
+                    
+                    Object.keys(stationAccuracy).sort().forEach(stationName => {
+                        const acc = stationAccuracy[stationName];
+                        const avgAcc = acc.sum / acc.count;
+                        const card = document.createElement('div');
+                        card.className = 'stat-card';
+                        card.innerHTML = `
+                            <div style="font-weight: 600; color: #667eea; margin-bottom: 8px;">${stationName}</div>
+                            <div style="font-size: 24px; font-weight: 700; color: ${avgAcc >= 90 ? '#48bb78' : avgAcc >= 80 ? '#ff9800' : '#f56565'};">${avgAcc.toFixed(2)}%</div>
+                            <div style="font-size: 12px; color: #666; margin-top: 3px;">${acc.count} 天数据</div>
+                        `;
+                        accuracyGrid.appendChild(card);
+                    });
+                    
+                    accuracyPanel.style.display = 'block';
+                }
+            }
+            
+            // 按车站分组显示预测结果
+            const stationGroups = {};
+            data.predictions.forEach(pred => {
+                const stationName = pred['车站名称'];
+                if (!stationGroups[stationName]) {
+                    stationGroups[stationName] = [];
+                }
+                stationGroups[stationName].push(pred);
+            });
+            
+            const sortedStations = Object.keys(stationGroups).sort();
+            
+            sortedStations.forEach(stationName => {
+                const card = document.createElement('div');
+                card.className = 'line-card';
+                card.style.marginBottom = '20px';
+                
+                const stationPreds = stationGroups[stationName];
+                let cardHTML = `
+                    <div class="line-card-header">
+                        <h3>${stationName}</h3>
+                    </div>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background-color: #f7fafc;">
+                                <th style="padding: 10px; text-align: center; border-bottom: 2px solid #e0e0e0;">日期</th>
+                                <th style="padding: 10px; text-align: right; border-bottom: 2px solid #e0e0e0;">基期日均</th>
+                                <th style="padding: 10px; text-align: right; border-bottom: 2px solid #e0e0e0;">最优增长率</th>
+                                <th style="padding: 10px; text-align: center; border-bottom: 2px solid #e0e0e0;">来源年份</th>
+                                <th style="padding: 10px; text-align: right; border-bottom: 2px solid #e0e0e0;">预测客流</th>
+                                ${data.has_actual ? `
+                                    <th style="padding: 10px; text-align: right; border-bottom: 2px solid #e0e0e0;">实际客流</th>
+                                    <th style="padding: 10px; text-align: right; border-bottom: 2px solid #e0e0e0;">误差</th>
+                                    <th style="padding: 10px; text-align: right; border-bottom: 2px solid #e0e0e0;">准确率</th>
+                                ` : ''}
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                
+                stationPreds.forEach(pred => {
+                    const growthColor = pred['最优增长率'] >= 0 ? '#48bb78' : '#f56565';
+                    const accuracyColor = pred['准确率'] >= 90 ? '#48bb78' : pred['准确率'] >= 80 ? '#ff9800' : '#f56565';
+                    
+                    const dateStr = pred['预测日期'];
+                    const formattedDate = `${dateStr.substring(0, 4)}-${dateStr.substring(4, 6)}-${dateStr.substring(6, 8)}`;
+                    
+                    cardHTML += `
+                        <tr style="border-bottom: 1px solid #f0f0f0;">
+                            <td style="padding: 10px; text-align: center; font-weight: 600;">${formattedDate}</td>
+                            <td style="padding: 10px; text-align: right;">
+                                ${pred['基期日均'].toLocaleString('zh-CN')}
+                            </td>
+                            <td style="padding: 10px; text-align: right; color: ${growthColor}; font-weight: 700;">
+                                ${pred['最优增长率'] > 0 ? '+' : ''}${pred['最优增长率'].toFixed(2)}%
+                            </td>
+                            <td style="padding: 10px; text-align: center; color: #667eea; font-weight: 600;">${pred['最优来源年份']}年</td>
+                            <td style="padding: 10px; text-align: right; background: #fff9e6; font-weight: 700; color: #ff9800;">
+                                ${pred['预测客流'].toLocaleString('zh-CN')}
+                            </td>
+                            ${data.has_actual ? `
+                                <td style="padding: 10px; text-align: right; font-weight: 600;">
+                                    ${pred['实际客流'] !== null ? pred['实际客流'].toLocaleString('zh-CN') : '-'}
+                                </td>
+                                <td style="padding: 10px; text-align: right; color: ${pred['误差'] > 0 ? '#f56565' : '#48bb78'}; font-weight: 600;">
+                                    ${pred['误差'] !== null ? (pred['误差'] > 0 ? '+' : '') + pred['误差'].toLocaleString('zh-CN') : '-'}
+                                </td>
+                                <td style="padding: 10px; text-align: right; background: ${pred['准确率'] >= 90 ? '#e6f7ed' : pred['准确率'] >= 80 ? '#fff9e6' : '#fee'}; font-weight: 700; color: ${accuracyColor};">
+                                    ${pred['准确率'] !== null ? pred['准确率'].toFixed(2) + '%' : '-'}
+                                </td>
+                            ` : ''}
+                        </tr>
+                    `;
+                });
+                
+                cardHTML += `
+                        </tbody>
+                    </table>
+                `;
+                
+                card.innerHTML = cardHTML;
+                dataContainer.appendChild(card);
+            });
+            
+            resultsPanel.style.display = 'block';
+            resultsPanel.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        function toggleStationPredictDetails() {
+            const content = document.getElementById('stationDetailsContent');
+            const icon = document.getElementById('stationDetailsExpandIcon');
+            
+            if (content && icon) {
+                if (content.classList.contains('show')) {
+                    content.classList.remove('show');
+                    icon.classList.remove('expanded');
+                } else {
+                    content.classList.add('show');
+                    icon.classList.add('expanded');
+                }
+            }
+        }
+    </script>
+</body>
+</html>
+
+
