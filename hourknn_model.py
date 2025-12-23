@@ -24,10 +24,98 @@ def get_logger():
 logger = get_logger()
 
 DEFAULT_KNN_FACTORS = [
-    'F_WEEK', 'F_DATEFEATURES', 'F_HOLIDAYTYPE', 'F_ISHOLIDAY',
-    'F_ISNONGLI', 'F_ISYANGLI', 'F_NEXTDAY', 'F_HOLIDAYDAYS',
-    'F_HOLIDAYTHDAY', 'IS_FIRST', 'WEATHER_TYPE', 'F_HOUR'
+    'F_YEAR', 'F_HOLIDAYWHICHDAY', 'F_DAYOFWEEK', 'F_WEATHER',
+    'F_WEEK', 'F_HOLIDAYTYPE', 'F_HOLIDAYDAYS',
+    'WEATHER_TYPE', 'F_HOUR', 'F_RUSH_HOUR_TYPE'
 ]
+
+def calculate_rush_hour_type(hour) -> int:
+    """
+    计算早晚高峰类型因子
+    返回: 0=非高峰, 1=早高峰, 2=晚高峰
+    
+    早高峰：6-10点
+    晚高峰：16-20点
+    
+    参数:
+        hour: 小时值，可以是 int, float, str (如 "00", "01", "7", "17" 等)
+    """
+    # 处理各种输入类型
+    try:
+        # 处理 NaN/None
+        if hour is None or (isinstance(hour, float) and pd.isna(hour)):
+            return 0
+        
+        # 如果是字符串，先尝试转换为整数
+        if isinstance(hour, str):
+            hour_str = str(hour).strip()
+            # 处理 "00", "01" 等格式
+            if hour_str.isdigit():
+                hour_int = int(hour_str)
+            else:
+                # 尝试提取数字部分
+                import re
+                match = re.search(r'\d+', hour_str)
+                if match:
+                    hour_int = int(match.group())
+                else:
+                    return 0
+        elif isinstance(hour, (int, float)):
+            # 处理 NaN
+            if pd.isna(hour):
+                return 0
+            hour_int = int(float(hour))
+        else:
+            return 0
+    except (ValueError, TypeError, AttributeError):
+        return 0
+    
+    # 确保小时在有效范围内
+    if not (0 <= hour_int <= 23):
+        return 0
+    
+    # 早高峰：6-10点
+    if 6 <= hour_int <= 10:
+        return 1  # 早高峰
+    # 晚高峰：16-20点
+    elif 16 <= hour_int <= 20:
+        return 2  # 晚高峰
+    # 非高峰：其他时间
+    else:
+        return 0  # 非高峰
+
+def calculate_date_features(row) -> int:
+    """
+    根据CalendarHistory表的字段计算日期类型
+    返回: 0=节假日, 1=平日, 2=周末
+    """
+    # 如果F_HOLIDAYTYPE不为空，则为节假日
+    if pd.notna(row.get('F_HOLIDAYTYPE')) and str(row.get('F_HOLIDAYTYPE')).strip() != '':
+        return 0  # 节假日
+    # 如果F_DAYOFWEEK是6或7（周六或周日），则为周末
+    day_of_week = row.get('F_DAYOFWEEK')
+    if pd.notna(day_of_week):
+        try:
+            dow = int(day_of_week)
+            if dow in [6, 7]:  # 周六或周日
+                return 2  # 周末
+        except (ValueError, TypeError):
+            pass
+    # 否则为平日
+    return 1  # 平日
+
+def sanitize_line_no(line_no: str) -> str:
+    """清理线路名，将不适合作为文件名的字符替换为安全字符"""
+    if not isinstance(line_no, str):
+        line_no = str(line_no)
+    sanitized = line_no.replace('/', '-').replace('\\', '-').replace(':', '-')
+    sanitized = sanitized.replace('*', '-').replace('?', '-').replace('"', '-')
+    sanitized = sanitized.replace('<', '-').replace('>', '-').replace('|', '-')
+    sanitized = sanitized.strip('. ')
+    if not sanitized:
+        sanitized = 'unknown'
+    return sanitized
+
 
 DEFAULT_LINE_WEIGHTS = {
     '31': {"knn": 0.3, "last_year_offset": 0.7},
@@ -164,10 +252,10 @@ class KNNHourlyFlowPredictor:
                 pred_start_dt = datetime.strptime(predict_start_datetime, "%Y%m%d%H")
             pred_datetimes = [pred_start_dt + timedelta(hours=h) for h in range(hours)]
 
-            # 确保有F_DATEFEATURES列
+            # 计算F_DATEFEATURES列（如果不存在）
             if "F_DATEFEATURES" not in line_data.columns:
-                logger.warning("F_DATEFEATURES字段缺失，默认全部按0处理")
-                line_data["F_DATEFEATURES"] = 0
+                logger.info("计算F_DATEFEATURES字段（基于F_HOLIDAYTYPE和F_DAYOFWEEK）")
+                line_data["F_DATEFEATURES"] = line_data.apply(calculate_date_features, axis=1)
 
             # 获取预测起始日期的F_DATEFEATURES类型
             pred_start_date_str = pred_start_dt.strftime("%Y%m%d")
@@ -182,7 +270,11 @@ class KNNHourlyFlowPredictor:
                 if not prev_day_rows.empty:
                     pred_day_features = int(prev_day_rows.iloc[0]["F_DATEFEATURES"])
                 else:
-                    pred_day_features = 0  # 默认0
+                    # 根据日期计算：如果是周末则为2，否则为1（默认平日）
+                    if pred_start_dt.weekday() >= 5:  # 5=周六, 6=周日
+                        pred_day_features = 2
+                    else:
+                        pred_day_features = 1
 
             line_data = self._add_datetime_column(line_data)
             line_data_sorted = line_data.sort_values(['DATETIME'])
@@ -273,7 +365,11 @@ class KNNHourlyFlowPredictor:
                     candidate_date = (search_date - timedelta(days=back_days)).strftime("%Y%m%d")
                     candidate_rows = line_data[line_data["F_DATE"] == candidate_date]
                     if not candidate_rows.empty:
-                        candidate_type = int(candidate_rows.iloc[0]["F_DATEFEATURES"])
+                        # 如果F_DATEFEATURES不存在，计算它
+                        if "F_DATEFEATURES" not in candidate_rows.columns:
+                            candidate_type = calculate_date_features(candidate_rows.iloc[0])
+                        else:
+                            candidate_type = int(candidate_rows.iloc[0]["F_DATEFEATURES"])
                         if candidate_type == target_type:
                             ref_date = candidate_date
                             found = True
@@ -309,7 +405,11 @@ class KNNHourlyFlowPredictor:
                     offset_candidate_date = offset_ref_dt.strftime("%Y%m%d")
                     offset_candidate_rows = line_data[line_data["F_DATE"] == offset_candidate_date]
                     if not offset_candidate_rows.empty:
-                        candidate_type = int(offset_candidate_rows.iloc[0]["F_DATEFEATURES"])
+                        # 如果F_DATEFEATURES不存在，计算它
+                        if "F_DATEFEATURES" not in offset_candidate_rows.columns:
+                            candidate_type = calculate_date_features(offset_candidate_rows.iloc[0])
+                        else:
+                            candidate_type = int(offset_candidate_rows.iloc[0]["F_DATEFEATURES"])
                         if candidate_type == target_type:
                             break
                     offset_ref_dt -= timedelta(days=1)
@@ -407,6 +507,12 @@ class KNNHourlyFlowPredictor:
             )
         if 'F_HOUR' in self.factors and 'F_HOUR' not in df.columns:
             raise ValueError("F_HOUR字段缺失")
+        # 如果F_RUSH_HOUR_TYPE不在数据中，根据F_HOUR计算
+        if 'F_RUSH_HOUR_TYPE' in self.factors and 'F_RUSH_HOUR_TYPE' not in df.columns:
+            if 'F_HOUR' in df.columns:
+                df['F_RUSH_HOUR_TYPE'] = df['F_HOUR'].apply(calculate_rush_hour_type)
+            else:
+                df['F_RUSH_HOUR_TYPE'] = 0
         df = self._ensure_numeric_data(df, self.factors)
         X = df[self.factors].values.astype(np.float64)
         y = df['F_KLCOUNT'].values.astype(np.float64)
@@ -462,8 +568,9 @@ class KNNHourlyFlowPredictor:
             mae = mean_absolute_error(y_true_original, y_pred_original)
             logger.info(f"最佳模型: K={best_k}, MSE={mse:.2f}, MAE={mae:.2f}")
             version = model_version or self.version
-            model_path = os.path.join(self.model_dir, f"knn_line_{line_no}_hourly_v{version}.pkl")
-            scaler_path = os.path.join(self.model_dir, f"knn_scaler_line_{line_no}_hourly_v{version}.pkl")
+            safe_line_no = sanitize_line_no(line_no)
+            model_path = os.path.join(self.model_dir, f"knn_line_{safe_line_no}_hourly_v{version}.pkl")
+            scaler_path = os.path.join(self.model_dir, f"knn_scaler_line_{safe_line_no}_hourly_v{version}.pkl")
             joblib.dump(best_model, model_path)
             joblib.dump(best_scaler, scaler_path)
             self.models[line_no] = best_model
@@ -503,25 +610,19 @@ class KNNHourlyFlowPredictor:
                 line_data, predict_start_datetime, hours
             )
 
-            # 早上6点以前直接用历史数据（去年同期+偏移），如果历史数据为空则为0
+            # 0-5点以前默认预测为0，6点及以后按正常KNN+偏移融合
             final_predictions = []
             early_morning_hours = 0
             for i in range(hours):
                 current_dt = start_dt + timedelta(hours=i)
                 current_hour = current_dt.hour
-                cutoff_hour = self.early_morning_config.get("cutoff_hour", 6)
-                if current_hour < cutoff_hour:
-                    # 早上6点前，完全用历史数据
-                    offset_pred = offset_predictions[i] if i < len(offset_predictions) else 0.0
-                    # 判断历史数据是否为空（即offset_pred为nan或0）
-                    if offset_pred is None or (isinstance(offset_pred, float) and np.isnan(offset_pred)):
-                        final_pred = 0.0
-                    else:
-                        final_pred = max(offset_pred, 0.0)
+                # 0-5点以前默认预测为0
+                if current_hour <= 5:
+                    final_pred = 0.0
                     early_morning_hours += 1
-                    logger.debug(f"小时{current_hour}早晨时段，预测值: {final_pred:.2f}")
+                    logger.debug(f"小时{current_hour}凌晨时段，预测值设为0")
                 else:
-                    # 其他时段按正常融合
+                    # 6点及以后按正常融合
                     weights = self.get_hour_specific_weights(line_no, current_hour)
                     knn_weight = weights.get("knn", 0.6)
                     offset_weight = weights.get("last_year_offset", 0.4)
@@ -544,13 +645,51 @@ class KNNHourlyFlowPredictor:
                      factor_df: Optional[pd.DataFrame] = None) -> Tuple[Optional[List[float]], Optional[str]]:
         try:
             version = model_version or self.version
-            model_path = os.path.join(self.model_dir, f"knn_line_{line_no}_hourly_v{version}.pkl")
-            scaler_path = os.path.join(self.model_dir, f"knn_scaler_line_{line_no}_hourly_v{version}.pkl")
+            safe_line_no = sanitize_line_no(line_no)
+            model_path = os.path.join(self.model_dir, f"knn_line_{safe_line_no}_hourly_v{version}.pkl")
+            scaler_path = os.path.join(self.model_dir, f"knn_scaler_line_{safe_line_no}_hourly_v{version}.pkl")
             if not os.path.exists(model_path) or not os.path.exists(scaler_path):
                 return None, f"模型文件未找到: {model_path}"
             model = joblib.load(model_path)
             scaler = joblib.load(scaler_path)
             logger.info(f"加载KNN模型: K={getattr(model, 'n_neighbors', '未知')}")
+            
+            # 检查 scaler 期望的特征数量，确保预测时使用的因子与训练时一致
+            expected_features = getattr(scaler, 'n_features_in_', None)
+            if expected_features is None:
+                # 尝试从 mean_ 属性推断特征数量
+                if hasattr(scaler, 'mean_'):
+                    expected_features = len(scaler.mean_)
+                else:
+                    expected_features = len(self.factors)
+                    logger.warning(f"无法确定 scaler 期望的特征数量，使用当前因子数量: {expected_features}")
+            
+            # 根据 scaler 期望的特征数量调整因子列表
+            if expected_features != len(self.factors):
+                logger.warning(f"模型期望 {expected_features} 个特征，但当前配置有 {len(self.factors)} 个因子")
+                # 如果期望的特征数量少于当前因子数量，移除 F_RUSH_HOUR_TYPE（如果存在）
+                if expected_features < len(self.factors):
+                    if 'F_RUSH_HOUR_TYPE' in self.factors:
+                        model_factors = [f for f in self.factors if f != 'F_RUSH_HOUR_TYPE']
+                        logger.info(f"移除 F_RUSH_HOUR_TYPE 以匹配模型期望的特征数量 ({expected_features} 个)")
+                    else:
+                        # 如果移除 F_RUSH_HOUR_TYPE 后仍然不匹配，尝试移除其他因子
+                        model_factors = self.factors[:expected_features]
+                        logger.warning(f"截取前 {expected_features} 个因子以匹配模型")
+                # 如果期望的特征数量多于当前因子数量，尝试添加 F_RUSH_HOUR_TYPE（如果不存在）
+                elif expected_features > len(self.factors):
+                    if 'F_RUSH_HOUR_TYPE' not in self.factors and expected_features == len(self.factors) + 1:
+                        model_factors = self.factors + ['F_RUSH_HOUR_TYPE']
+                        logger.info(f"添加 F_RUSH_HOUR_TYPE 以匹配模型期望的特征数量 ({expected_features} 个)")
+                    else:
+                        model_factors = self.factors.copy()
+                        logger.warning(f"模型期望 {expected_features} 个特征，但当前只有 {len(self.factors)} 个因子，可能导致错误")
+                else:
+                    model_factors = self.factors.copy()
+            else:
+                model_factors = self.factors.copy()
+            
+            logger.info(f"预测使用的因子: {model_factors} (共 {len(model_factors)} 个)")
             
             if len(predict_start_datetime) == 8:
                 predict_dt = datetime.strptime(predict_start_datetime, '%Y%m%d')
@@ -560,36 +699,55 @@ class KNNHourlyFlowPredictor:
             pred_datetimes = [predict_dt + timedelta(hours=h) for h in range(hours)]
 
             if factor_df is not None:
-                logger.info("使用用户提供的因子数据（一天的），自动扩展为24小时")
-                base_row = factor_df.iloc[0] if not factor_df.empty else pd.Series(dtype=float)
-                pred_df = pd.DataFrame(index=range(hours))
-                for col in self.factors:
-                    if col == 'weekday':
-                        pred_df[col] = [dt.weekday() for dt in pred_datetimes]
-                    elif col == 'F_HOUR':
-                        pred_df[col] = [dt.hour for dt in pred_datetimes]
-                    else:
-                        pred_df[col] = [0.0] * hours
-                pred_df = self._ensure_numeric_data(pred_df, self.factors)
+                logger.info("使用用户提供的因子数据（24小时）")
+                # 如果factor_df有24行，直接使用；否则扩展
+                if len(factor_df) == hours:
+                    pred_df = factor_df.copy()
+                    # 确保F_HOUR正确
+                    if 'F_HOUR' in model_factors:
+                        pred_df['F_HOUR'] = [dt.hour for dt in pred_datetimes]
+                    # 确保F_RUSH_HOUR_TYPE正确（仅在需要时）
+                    if 'F_RUSH_HOUR_TYPE' in model_factors:
+                        if 'F_RUSH_HOUR_TYPE' not in pred_df.columns:
+                            pred_df['F_RUSH_HOUR_TYPE'] = [calculate_rush_hour_type(dt.hour) for dt in pred_datetimes]
+                else:
+                    # 扩展为24小时
+                    base_row = factor_df.iloc[0] if not factor_df.empty else pd.Series(dtype=float)
+                    pred_df = pd.DataFrame(index=range(hours))
+                    for col in model_factors:
+                        if col == 'weekday':
+                            pred_df[col] = [dt.weekday() for dt in pred_datetimes]
+                        elif col == 'F_HOUR':
+                            pred_df[col] = [dt.hour for dt in pred_datetimes]
+                        elif col == 'F_RUSH_HOUR_TYPE':
+                            pred_df[col] = [calculate_rush_hour_type(dt.hour) for dt in pred_datetimes]
+                        elif col in base_row.index:
+                            val = float(base_row[col]) if pd.notna(base_row[col]) else 0.0
+                            pred_df[col] = [val] * hours
+                        else:
+                            pred_df[col] = [0.0] * hours
+                pred_df = self._ensure_numeric_data(pred_df, model_factors)
             else:
                 logger.warning("未提供因子数据，使用默认值填充")
                 if line_data.empty:
                     return None, "历史数据为空，无法生成默认因子"
                 last_row = line_data.sort_values(['F_DATE', 'F_HOUR']).iloc[-1]
                 pred_df = pd.DataFrame(index=range(hours))
-                for col in self.factors:
+                for col in model_factors:
                     if col == 'weekday':
                         pred_df[col] = [dt.weekday() for dt in pred_datetimes]
                     elif col == 'F_HOUR':
                         pred_df[col] = [dt.hour for dt in pred_datetimes]
+                    elif col == 'F_RUSH_HOUR_TYPE':
+                        pred_df[col] = [calculate_rush_hour_type(dt.hour) for dt in pred_datetimes]
                     elif col in last_row.index:
                         val = float(last_row[col]) if pd.notna(last_row[col]) else 0.0
                         pred_df[col] = [val] * hours
                     else:
                         pred_df[col] = [0.0] * hours
-                pred_df = self._ensure_numeric_data(pred_df, self.factors)
+                pred_df = self._ensure_numeric_data(pred_df, model_factors)
             
-            X_pred = pred_df[self.factors].values
+            X_pred = pred_df[model_factors].values
             logger.info(f"预测特征矩阵形状: {X_pred.shape}")
             if np.any(np.isnan(X_pred)) or np.any(np.isinf(X_pred)):
                 return None, "预测特征矩阵包含无效值"
@@ -740,7 +898,8 @@ class KNNHourlyFlowPredictor:
             'early_morning_config': self.early_morning_config,
             'prediction_type': 'hourly'
         }
-        info_path = os.path.join(self.model_dir, f"model_info_line_{line_no}_hourly_v{version}.json")
+        safe_line_no = sanitize_line_no(line_no)
+        info_path = os.path.join(self.model_dir, f"model_info_line_{safe_line_no}_hourly_v{version}.json")
         try:
             with open(info_path, 'w', encoding='utf-8') as f:
                 json.dump(info, f, ensure_ascii=False, indent=2)
@@ -791,7 +950,8 @@ class KNNHourlyFlowPredictor:
             except Exception as e:
                 diagnosis['data_issues'].append(f"数据准备失败: {str(e)}")
             version = self.version
-            model_path = os.path.join(self.model_dir, f"knn_line_{line_no}_hourly_v{version}.pkl")
+            safe_line_no = sanitize_line_no(line_no)
+            model_path = os.path.join(self.model_dir, f"knn_line_{safe_line_no}_hourly_v{version}.pkl")
             if not os.path.exists(model_path):
                 diagnosis['model_issues'].append("KNN模型文件不存在")
             try:
