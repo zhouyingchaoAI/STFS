@@ -1,4 +1,4 @@
-current_version: '20250924'
+current_version: '20251223'
 default_algorithm: lstm
 model_root_dir: models/hour
 train_params:

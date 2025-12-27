@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# 环境变量
+.env
+.venv
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 日志
+*.log
+logs/
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# 前端
+node_modules/
+dist/
+.vite/
+*.local
+
+# 临时文件
+*.tmp
+*.bak
+*.cache
+
+# 数据库
+*.db
+*.sqlite
+
+# 其他
+*.docx
+*.png

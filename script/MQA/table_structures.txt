@@ -1,0 +1,220 @@
+
+# 数据库: master
+
+表：dbo.CalendarHistory
+字段名	类型	长度	是否可空	默认值	备注
+f_date	int		YES		日期
+f_year	int		YES		年
+f_DayOfWeek	int		YES		每周第几天
+f_week	int		YES		每年第几周
+f_HolidayType	int		YES		节假日类型
+f_HolidayDays	int		YES		该节假日天数
+f_HolidayWhichDay	int		YES		节假日第几天
+COVID19	int		YES		
+f_weather	int		YES		天气类型
+示例数据	20171211	2017	1	50	0	0	0	0	15
+
+表：dbo.LineDailyFlowHistory
+字段名	类型	长度	是否可空	默认值	备注
+id	varchar	50	NO		
+f_date	int		YES		日期
+f_lb	int		YES		线网或者线路
+f_lineno	int		YES		线路号
+f_linename	varchar	50	YES		线路名
+f_klcount	numeric		YES		客运量
+entry_num	numeric		YES		进站量
+exit_num	numeric		YES		出站量
+change_num	numeric		YES		换乘量
+flow_num	numeric		YES		乘降量
+createtime	date		YES		创建日期
+creator	varchar	50	YES		
+modifytime	varchar	50	YES		
+modifier	varchar	50	YES		
+remarks	varchar	50	YES		
+示例数据	2022010101	20220101	0	1	N'1号线'	364724	262066	252984	102658	617708		chency			
+
+表：dbo.LineHourlyFlowHistory
+字段名	类型	长度	是否可空	默认值	备注
+id	varchar	50	NO		
+f_date	int		YES		日期
+f_hour	int		YES		小时
+f_lineno	int		YES		线路号
+f_linename	varchar	50	YES		线路名
+f_klcount	numeric		YES		客运量
+entry_num	numeric		YES		进站量
+exit_num	numeric		YES		出站量
+change_num	numeric		YES		换乘量
+flow_num	numeric		YES		乘降量
+createtime	date		YES		创建时间
+creator	varchar	50	YES		创建者
+示例数据	20220101001	20220101	0	83	N'互联网平台'	0	0	707	0	707		chency
+
+表：dbo.LSTM_COMMON_HOLIDAYFEATURE
+字段名	类型	长度	是否可空	默认值	备注
+ID	varchar	50	NO		
+F_DATE	int		YES		日期
+F_WEEK	int		YES		本年第几周
+F_DATEFEATURES	varchar	100	YES		节假日工作日周末类别
+F_HOLIDAYTYPE	varchar	50	YES		节假日类型
+F_ISHOLIDAY	int		YES		是否节假日
+F_ISNONGLI	int		YES		
+F_ISYANGLI	int		YES		
+F_NEXTDAY	int		YES		是否节假日后一天
+F_HOLIDAYDAYS	int		YES		节假日天数
+F_HOLIDAYTHDAY	decimal		YES		节假日第几天
+F_ISSPACIAL	int		YES		
+CREATETIME	datetime		YES		创建时间
+CREATOR	varchar	100	YES		创建者
+MODIFYTIME	datetime		YES		修改时间
+MODIFIER	varchar	100	YES		
+REMARKS	varchar	1000	YES		
+IS_SUMMER	int		YES		
+IS_FIRST	int		YES		
+示例数据	174870720120220101	20220101	6	holiday	New year's Day	1	0	1	1	3	0.3333333333	0	2025-07-26 06:57:41.700000	SYSTEM	2025-07-26 06:57:41.700000	SYSTEM		0	0
+
+表：dbo.STATION_FLOW_HISTORY
+字段名	类型	长度	是否可空	默认值	备注
+ID	varchar	50	NO		
+LINE_ID	char	8	YES		线路号
+STATION_ID	char	8	YES		车站号
+STATION_NAME	varchar	50	YES		车站名
+ENTRY_NUM	numeric		YES		进站量
+EXIT_NUM	numeric		YES		出站量
+CHANGE_NUM	numeric		YES		换乘量
+PASSENGER_NUM	numeric		YES		客运量
+FLOW_NUM	numeric		YES		乘降量
+SQUAD_DATE	int		YES		日期
+示例数据	2022-01-011	03      	21      	N'星沙'	17849	18834	0	17849	36683	20220101
+
+
+表：dbo.STATION_HOUR_HISTORY
+字段名	类型	长度	是否可空	默认值	备注
+ID	varchar	50	NO		
+LINE_ID	char	8	YES		线路号
+STATION_ID	char	8	YES		车站号
+STATION_NAME	varchar	50	YES		车站名
+ENTRY_NUM	numeric		YES		进站量
+EXIT_NUM	numeric		YES		出站量
+CHANGE_NUM	numeric		YES		换乘量
+PASSENGER_NUM	numeric		YES		客运量
+FLOW_NUM	numeric		YES		乘降量
+TIME_SECTION_ID	char	10	YES		小时
+SQUAD_DATE	int		YES		日期
+示例数据	2022-01-01001	83      	00      		0	707	0	0	707	00        	20220101
+
+表：dbo.WeatherFuture
+字段名	类型	长度	是否可空	默认值	备注
+ID	varchar	50	NO		
+F_DATE	int		YES		
+F_TQQK	nvarchar	32	YES		
+F_QW	nvarchar	32	YES		
+F_FLFX	nvarchar	32	YES		
+CREATETIME	datetime		YES		
+CREATOR	varchar	32	YES		
+MODIFYTIME	varchar	32	YES		
+MODIFIER	varchar	32	YES		
+REMARKS	varchar	32	YES		
+PREDICT_DATE	int		YES		
+MAPPED_WEATHER	nvarchar	32	YES		
+示例数据	00e0adf1b6094285bc0ed045b265d672	20250920	N'晴'	13℃/24℃	N'西南风1-3级'	2025-08-25 10:18:39.077000					20250920	N'雷阵雨'
+
+表：dbo.WeatherHistory
+字段名	类型	长度	是否可空	默认值	备注
+ID	varchar	50	NO		
+F_DATE	int		YES		日期
+F_TQQK	nvarchar	32	YES		天气类型
+F_QW	nvarchar	32	YES		气温
+F_FLFX	nvarchar	32	YES		风力等级
+CREATETIME	varchar	32	YES		创建时间
+CREATOR	varchar	32	YES		创建人
+MODIFYTIME	varchar	32	YES		修改时间
+MODIFIER	varchar	32	YES		
+REMARKS	varchar	32	YES		
+MAPPED_WEATHER	nvarchar	32	YES		详细天气
+示例数据	001cb6cf23a3490594cb5a6db62c5d4e	20230920	N'小雨 /  小雨'	22℃/29℃	N'北风 1-3级 '	2025-07-18 09:58:05					N'小雨 /  小雨'
+
+# 数据库: CxFlowPredict
+
+表：dbo.LineDailyFlowPrediction
+字段名	类型	长度	是否可空	默认值	备注
+ID	varchar	50	NO		
+F_DATE	int		YES		日期
+F_HOLIDAYTYPE	varchar	32	YES		节假日类别
+F_LB	int		YES		线网或者线路
+F_LINENO	int		YES		线路号
+F_LINENAME	nvarchar	32	YES		线路名
+F_PKLCOUNT	float		YES		客运量
+F_BEFPKLCOUNT	float		YES		
+F_PRUTE	float		YES		
+F_OTHER	varchar	32	YES		
+F_WH	varchar	32	YES		
+F_ZDHD	varchar	32	YES		
+F_YQZH	varchar	32	YES		
+F_YXYSMS	varchar	32	YES		
+CREATETIME	varchar	32	YES		
+CREATOR	varchar	32	YES		创建时间
+MODIFYTIME	varchar	32	YES		
+MODIFIER	varchar	32	YES		
+REMARKS	varchar	32	YES		
+PREDICT_DATE	int		YES		预测日期
+PREDICT_WEATHER	varchar	32	YES		预测天气
+F_TYPE	varchar	32	YES		类别
+entry_num	numeric		YES		进站量
+exit_num	numeric		YES		出站量
+change_num	numeric		YES		换乘量
+flow_num	numeric		YES		乘降量
+示例数据	0076d79e-5a30-440e-939e-14cb90a3216f	20250428	0	0	5	N'5号线'	193834.0								20251025	knn_predict			50823649	20250427		1				
+
+表：dbo.LineHourlyFlowPrediction
+字段名	类型	长度	是否可空	默认值	备注
+ID	varchar	50	NO		
+F_DATE	int		YES		日期
+F_HOUR	int		YES		小时
+F_LINENO	int		YES		线路号
+F_LINENAME	nvarchar	32	YES		线路名
+F_PKLCOUNT	float		YES		客流量
+F_BEFPKLCOUNT	float		YES		
+F_PRUTE	varchar	32	YES		
+CREATETIME	varchar	32	YES		创建时间
+CREATOR	varchar	32	YES		
+REMARKS	varchar	32	YES		
+PREDICT_DATE	int		YES		预测日期
+PREDICT_WEATHER	varchar	32	YES		预测天气
+entry_num	numeric		YES		进站量
+exit_num	numeric		YES		出站量
+change_num	numeric		YES		换乘量
+flow_num	numeric		YES		乘降量
+示例数据	000d2d53-f025-457a-ac81-682924a1e946	20251009	6	3	N'3号线'	5774.0			20251009	knn_predict	19497070	20251009		5642	908	132	6684
+
+
+表：dbo.STATION_FLOW_PREDICT
+字段名	类型	长度	是否可空	默认值	备注
+ID	varchar	50	NO		
+LINE_ID	char	2	YES		线路号
+STATION_ID	char	2	YES		车站号
+STATION_NAME	varchar	20	YES		车站名
+SQUAD_DATE	date		YES		日期
+PREDICT_DATE	date		YES		预测日期
+CHANGE_NUM	numeric		YES		换乘量
+ENTRY_NUM	numeric		YES		进站量
+EXIT_NUM	numeric		YES		出站量
+PASSENGER_NUM	numeric		YES		客运量
+FLOW_NUM	numeric		YES		乘降量
+示例数据	001706e6-53c3-4bc2-8214-0a32c8635d56	04	23	N'长沙火车南站'	2025-11-20	2025-11-20	15	46984	43173	46999	90181
+
+表：dbo.STATION_HOUR_PREDICT
+字段名	类型	长度	是否可空	默认值	备注
+ID	varchar	50	NO		
+LINE_ID	char	2	YES		线路号
+STATION_ID	char	2	YES		车站号
+STATION_NAME	varchar	20	YES		车站名
+SQUAD_DATE	date		YES		日期
+PREDICT_DATE	date		YES		预测日期
+PREDICT_NUM	numeric		YES		
+TIME_SECTION_ID	char	2	YES		小时
+ENTRY_NUM	numeric		YES		进站量
+EXIT_NUM	numeric		YES		出站量
+CHANGE_NUM	numeric		YES		换乘量
+PASSENGER_NUM	numeric		YES		客运量
+FLOW_NUM	numeric		YES		乘降量
+示例数据	0000571f-eeef-4e39-8f74-00f01beeccab	03	10	N'桂花公园'	2025-11-03	2025-11-03		07	172	67	0	172	240

@@ -46,5 +46,5 @@ def import_calendar_csv_to_db(csv_path, table_name="[master].[dbo].[CalendarHist
     print(f"成功导入 {len(df)} 条记录到 {table_name}")
 
 if __name__ == "__main__":
-    import_calendar_csv_to_db("holiday_data_20171211_20251231.csv")
+    import_calendar_csv_to_db("holiday_data_20171211_20261231.csv")
     # import_calendar_csv_to_db("BasicInformation.csv")

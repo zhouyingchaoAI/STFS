@@ -1,172 +1,310 @@
+"""
+绘制近三年"侯家塘"地铁站客流情况
+包含日客流趋势、月度统计、年度对比等多个维度的可视化
+"""
 import pandas as pd
 import pymssql
-from datetime import datetime
+from datetime import datetime, timedelta
+import matplotlib.pyplot as plt
+import matplotlib
+import numpy as np
+import sys
+import os
 
-# 数据库连接参数
-DB_CONFIG = {
-    "server": "10.1.6.230",
-    "user": "sa",
-    "password": "YourStrong!Passw0rd",
-    "database": "master",
-    "port": 1433
-}
+# 添加项目根目录到路径，以便导入模块
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# 用pymssql连接数据库
-conn = pymssql.connect(
-    server=DB_CONFIG["server"],
-    user=DB_CONFIG["user"],
-    password=DB_CONFIG["password"],
-    database=DB_CONFIG["database"],
-    port=DB_CONFIG["port"]
-)
+# 导入字体工具和数据库工具
+try:
+    from font_utils import get_chinese_font, configure_fonts
+except ImportError:
+    # 如果导入失败，尝试从script目录导入
+    try:
+        from script.font_utils import get_chinese_font, configure_fonts
+    except ImportError:
+        # 如果还是失败，定义简化版本
+        def get_chinese_font():
+            return None
+        def configure_fonts():
+            plt.rcParams['font.sans-serif'] = ['SimHei']
+            plt.rcParams['axes.unicode_minus'] = False
 
-# 查询2025年1月数据
-select_sql = """
-SELECT 
-    [ID], [F_DATE], [F_WEEK], [F_DATEFEATURES], [F_HOLIDAYTYPE], [F_ISHOLIDAY], 
-    [F_ISNONGLI], [F_ISYANGLI], [F_NEXTDAY], [F_HOLIDAYDAYS], [F_HOLIDAYTHDAY], 
-    [F_ISSPACIAL], [CREATETIME], [CREATOR], [MODIFYTIME], [MODIFIER], [REMARKS], [IS_SUMMER], [IS_FIRST]
-FROM [master].[dbo].[LSTM_COMMON_HOLIDAYFEATURE]
-WHERE F_DATE >= 20250101 AND F_DATE <= 20250131
-"""
+# 定义数据库连接函数（使用正确的服务器地址）
+def get_db_conn_script(charset='utf8'):
+    """
+    脚本专用的数据库连接函数，使用正确的服务器地址
+    """
+    DB_CONFIG = {
+        "server": "10.1.6.230",  # 脚本专用数据库服务器
+        "user": "sa",
+        "password": "YourStrong!Passw0rd",
+        "database": "StationFlowPredict",
+        "port": 1433
+    }
+    conn_params = DB_CONFIG.copy()
+    if charset:
+        conn_params["charset"] = charset
+    return pymssql.connect(**conn_params)
 
-df = pd.read_sql(select_sql, conn)
+# 导入编码修复函数
+try:
+    from db_utils import fix_dataframe_encoding
+except ImportError:
+    # 如果导入失败，使用简化版本
+    def fix_dataframe_encoding(df):
+        return df
 
-if df.empty:
-    print("未找到2025年1月数据")
+# 配置中文字体
+configure_fonts()
+my_font = get_chinese_font()
+if my_font is not None:
+    font_name = my_font.get_name()
+    plt.rcParams['font.sans-serif'] = ['SimHei', font_name]
 else:
-    # 将日期字段变更为2026年同期
-    def shift_to_2026(date_val):
-        """
-        传入20250101格式（int或str），返回20260101格式（int）
-        """
-        if pd.isnull(date_val):
-            return date_val
-        if isinstance(date_val, int):
-            date_str = str(date_val)
-        elif isinstance(date_val, str):
-            date_str = date_val
-        else:
-            return date_val
-        try:
-            date_obj = datetime.strptime(date_str, "%Y%m%d")
-        except Exception:
-            return date_val
-        try:
-            # 尝试直接替换年份到2026
-            shifted = date_obj.replace(year=2026)
-        except ValueError:
-            # 特殊场景处理，如闰年的2月29日
-            if date_obj.month == 2 and date_obj.day == 29:
-                shifted = date_obj.replace(year=2026, day=28)
-            else:
-                return date_val
-        return int(shifted.strftime("%Y%m%d"))
+    plt.rcParams['font.sans-serif'] = ['SimHei']
+plt.rcParams['axes.unicode_minus'] = False
+matplotlib.rc('font', family=plt.rcParams['font.sans-serif'][0])
 
-    def update_datetime_to_2026(dt_val):
-        if pd.isnull(dt_val):
-            return dt_val
-        if isinstance(dt_val, str):
-            try:
-                dt = pd.to_datetime(dt_val)
-                dt = dt.replace(year=2026)
-                return dt
-            except Exception:
-                return dt_val
-        elif isinstance(dt_val, (datetime, pd.Timestamp)):
-            try:
-                return dt_val.replace(year=2026)
-            except Exception:
-                # 处理闰年2月29号等
-                if hasattr(dt_val, "month") and dt_val.month == 2 and dt_val.day == 29:
-                    return dt_val.replace(year=2026, day=28)
-                return dt_val
-        return dt_val
+# 不使用科学计数法
+plt.ticklabel_format(style='plain', axis='y')
 
-    # F_DATE 字段转为2026年同期
-    df['F_DATE'] = df['F_DATE'].apply(shift_to_2026).astype('Int64')
+# 获取当前日期并定位近三年
+today = datetime.today()
+start_date = (today.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=365*3)).strftime("%Y-%m-%d")
+end_date = today.strftime("%Y-%m-%d")
+
+# 侯家塘地铁站的名称
+STATION_NAME = "侯家塘"
+
+print(f"正在查询{STATION_NAME}地铁站近3年客流数据...")
+print(f"查询时间范围: {start_date} 至 {end_date}")
+
+# 连接数据库并查询数据
+try:
+    # 使用脚本专用的数据库连接（直接连接正确的服务器）
+    conn = get_db_conn_script(charset='utf8')
+    print("✓ 数据库连接成功")
     
-    # 根据新的日期生成ID，格式：1748707201 + YYYYMMDD
-    def generate_id(date_val):
-        """根据日期生成ID"""
-        if pd.isnull(date_val):
-            return None
-        if isinstance(date_val, int):
-            date_str = str(date_val)
-        elif isinstance(date_val, str):
-            date_str = date_val
-        else:
-            return None
-        # ID格式：1748707201 + YYYYMMDD
-        return f"1748707201{date_str}"
+    # 查询近3年侯家塘地铁站小时客流数据
+    select_sql = """
+    SELECT 
+        [ID],
+        [LINE_ID],
+        [STATION_ID],
+        [STATION_NAME],
+        [ENTRY_NUM],
+        [EXIT_NUM],
+        [CHANGE_NUM],
+        [PASSENGER_NUM],
+        [FLOW_NUM],
+        [SQUAD_DATE]
+    FROM [StationFlowPredict].[dbo].[STATION_FLOW_HISTORY]
+    WHERE [STATION_NAME] = %s
+      AND [SQUAD_DATE] >= %s
+      AND [SQUAD_DATE] <= %s
+    ORDER BY [SQUAD_DATE]
+    """
     
-    # 生成新的ID
-    df['ID'] = df['F_DATE'].apply(generate_id)
-
-    # CREATETIME与MODIFYTIME转到2026年同期
-    df['CREATETIME'] = df['CREATETIME'].apply(update_datetime_to_2026)
-    df['MODIFYTIME'] = df['MODIFYTIME'].apply(update_datetime_to_2026)
-
-    # 准备插入数据
-    insert_cols = [
-        "ID", "F_DATE", "F_WEEK", "F_DATEFEATURES", "F_HOLIDAYTYPE", "F_ISHOLIDAY",
-        "F_ISNONGLI", "F_ISYANGLI", "F_NEXTDAY", "F_HOLIDAYDAYS", "F_HOLIDAYTHDAY",
-        "F_ISSPACIAL", "CREATETIME", "CREATOR", "MODIFYTIME", "MODIFIER", "REMARKS", "IS_SUMMER", "IS_FIRST"
-    ]
-    col_str = ", ".join(f"[{col}]" for col in insert_cols)
-    placeholders = ", ".join(["%s"] * len(insert_cols))
-    insert_sql = f"INSERT INTO [master].[dbo].[LSTM_COMMON_HOLIDAYFEATURE] ({col_str}) VALUES ({placeholders})"
-
-    cursor = conn.cursor()
-    count = 0
+    df = pd.read_sql(select_sql, conn, params=(STATION_NAME, start_date, end_date))
+    conn.close()
     
-    # 将DataFrame转换为列表，并处理数据类型
-    def convert_value(val):
-        """将pandas值转换为Python原生类型"""
-        # 处理NaN/None
-        if pd.isnull(val):
-            return None
-        # 日期时间类型直接返回
-        if isinstance(val, (pd.Timestamp, datetime)):
-            return val
-        # 尝试转换为Python原生类型
-        try:
-            # 如果是pandas标量类型，使用item()方法
-            if hasattr(val, 'item'):
-                item_val = val.item()
-                if pd.isnull(item_val):
-                    return None
-                # 如果是整数，转换为int
-                if isinstance(item_val, (int, float)) and not isinstance(item_val, bool):
-                    return int(item_val) if item_val.is_integer() else item_val
-                return item_val
-            # 直接是Python类型
-            if isinstance(val, (int, float)) and not isinstance(val, bool):
-                return int(val) if isinstance(val, float) and val.is_integer() else val
-            return val
-        except (ValueError, TypeError, AttributeError):
-            return None
+    # 应用编码修复
+    df = fix_dataframe_encoding(df)
     
-    # 将DataFrame转换为列表
-    for idx, row in df.iterrows():
-        row_values = [convert_value(row[col]) for col in insert_cols]
+    if df.empty:
+        print(f"未找到近3年{STATION_NAME}地铁站数据")
+    else:
+        print(f"成功获取 {len(df)} 条小时数据记录")
         
-        try:
-            cursor.execute(insert_sql, tuple(row_values))
-            count += 1
-            if count % 10 == 0:
-                print(f"已插入 {count} 条数据...")
-        except Exception as e:
-            print(f"插入第 {count + 1} 条数据时出错: {e}")
-            print(f"问题数据 (前10个字段): {row_values[:10]}")
-            print(f"数据类型: {[type(v).__name__ for v in row_values[:10]]}")
-            import traceback
-            traceback.print_exc()
-            conn.rollback()
-            raise
-    
-    conn.commit()
-    print(f"成功插入 {count} 条2026年1月数据。")
-    cursor.close()
-
-conn.close()
+        # 日期处理
+        df["SQUAD_DATE"] = pd.to_datetime(df["SQUAD_DATE"])
+        
+        # 按天统计
+        df_day = df.groupby("SQUAD_DATE").agg({
+            "ENTRY_NUM": "sum",
+            "EXIT_NUM": "sum",
+            "CHANGE_NUM": "sum",
+            "PASSENGER_NUM": "sum",
+            "FLOW_NUM": "sum"
+        }).reset_index()
+        df_day = df_day.sort_values("SQUAD_DATE")
+        
+        # 添加年月列用于分组统计
+        df_day["YEAR"] = df_day["SQUAD_DATE"].dt.year
+        df_day["MONTH"] = df_day["SQUAD_DATE"].dt.month
+        df_day["YEAR_MONTH"] = df_day["SQUAD_DATE"].dt.to_period("M")
+        
+        # 创建多子图布局
+        fig = plt.figure(figsize=(20, 12))
+        
+        # 1. 日客流趋势图（总客流、进站、出站、换乘）
+        ax1 = plt.subplot(2, 2, 1)
+        ax1.plot(df_day["SQUAD_DATE"], df_day["PASSENGER_NUM"], 
+                label="总客流", color="#1f77b4", linewidth=1.5, alpha=0.8)
+        ax1.plot(df_day["SQUAD_DATE"], df_day["ENTRY_NUM"], 
+                label="进站量", color="#2ca02c", linewidth=1.5, alpha=0.7)
+        ax1.plot(df_day["SQUAD_DATE"], df_day["EXIT_NUM"], 
+                label="出站量", color="#ff7f0e", linewidth=1.5, alpha=0.7)
+        ax1.plot(df_day["SQUAD_DATE"], df_day["CHANGE_NUM"], 
+                label="换乘量", color="#d62728", linewidth=1.5, alpha=0.7)
+        ax1.set_title(f"{STATION_NAME}地铁站近3年日客流趋势", 
+                     fontsize=14, fontproperties=my_font, pad=15)
+        ax1.set_xlabel("日期", fontsize=12, fontproperties=my_font)
+        ax1.set_ylabel("客流量（人次）", fontsize=12, fontproperties=my_font)
+        ax1.legend(prop=my_font, loc='upper left')
+        ax1.grid(True, alpha=0.3)
+        ax1.ticklabel_format(style='plain', axis='y')
+        
+        # 2. 月度平均客流对比
+        ax2 = plt.subplot(2, 2, 2)
+        df_monthly = df_day.groupby("YEAR_MONTH").agg({
+            "PASSENGER_NUM": "mean",
+            "ENTRY_NUM": "mean",
+            "EXIT_NUM": "mean"
+        }).reset_index()
+        df_monthly["YEAR_MONTH_STR"] = df_monthly["YEAR_MONTH"].astype(str)
+        
+        x_pos = np.arange(len(df_monthly))
+        width = 0.25
+        ax2.bar(x_pos - width, df_monthly["PASSENGER_NUM"], width, 
+               label="总客流", color="#1f77b4", alpha=0.8)
+        ax2.bar(x_pos, df_monthly["ENTRY_NUM"], width, 
+               label="进站量", color="#2ca02c", alpha=0.8)
+        ax2.bar(x_pos + width, df_monthly["EXIT_NUM"], width, 
+               label="出站量", color="#ff7f0e", alpha=0.8)
+        
+        ax2.set_title(f"{STATION_NAME}地铁站近3年月度平均客流", 
+                     fontsize=14, fontproperties=my_font, pad=15)
+        ax2.set_xlabel("年月", fontsize=12, fontproperties=my_font)
+        ax2.set_ylabel("平均客流量（人次/天）", fontsize=12, fontproperties=my_font)
+        ax2.set_xticks(x_pos[::3])  # 每3个月显示一个标签
+        ax2.set_xticklabels(df_monthly["YEAR_MONTH_STR"][::3], 
+                           rotation=45, ha='right', fontproperties=my_font)
+        ax2.legend(prop=my_font)
+        ax2.grid(True, alpha=0.3, axis='y')
+        ax2.ticklabel_format(style='plain', axis='y')
+        
+        # 3. 年度对比（按年份统计）
+        ax3 = plt.subplot(2, 2, 3)
+        df_yearly = df_day.groupby("YEAR").agg({
+            "PASSENGER_NUM": ["sum", "mean", "max", "min"],
+            "ENTRY_NUM": "sum",
+            "EXIT_NUM": "sum"
+        }).reset_index()
+        df_yearly.columns = ["YEAR", "PASSENGER_SUM", "PASSENGER_MEAN", 
+                            "PASSENGER_MAX", "PASSENGER_MIN", "ENTRY_SUM", "EXIT_SUM"]
+        
+        years = df_yearly["YEAR"].astype(str)
+        x_pos = np.arange(len(years))
+        width = 0.35
+        
+        ax3.bar(x_pos - width/2, df_yearly["PASSENGER_SUM"] / 10000, width, 
+               label="总客流（万人次）", color="#1f77b4", alpha=0.8)
+        ax3.bar(x_pos + width/2, df_yearly["ENTRY_SUM"] / 10000, width, 
+               label="进站量（万人次）", color="#2ca02c", alpha=0.8)
+        
+        ax3.set_title(f"{STATION_NAME}地铁站近3年年度客流对比", 
+                     fontsize=14, fontproperties=my_font, pad=15)
+        ax3.set_xlabel("年份", fontsize=12, fontproperties=my_font)
+        ax3.set_ylabel("客流量（万人次）", fontsize=12, fontproperties=my_font)
+        ax3.set_xticks(x_pos)
+        ax3.set_xticklabels(years, fontproperties=my_font)
+        ax3.legend(prop=my_font)
+        ax3.grid(True, alpha=0.3, axis='y')
+        
+        # 在柱状图上添加数值标签
+        for i, (year, total, entry) in enumerate(zip(years, df_yearly["PASSENGER_SUM"] / 10000, 
+                                                     df_yearly["ENTRY_SUM"] / 10000)):
+            ax3.text(i - width/2, total, f'{total:.1f}', 
+                    ha='center', va='bottom', fontsize=9, fontproperties=my_font)
+            ax3.text(i + width/2, entry, f'{entry:.1f}', 
+                    ha='center', va='bottom', fontsize=9, fontproperties=my_font)
+        
+        # 4. 月度分布热力图（按月份和年份）
+        ax4 = plt.subplot(2, 2, 4)
+        df_monthly_pivot = df_day.groupby(["YEAR", "MONTH"])["PASSENGER_NUM"].mean().reset_index()
+        pivot_table = df_monthly_pivot.pivot(index="MONTH", columns="YEAR", values="PASSENGER_NUM")
+        
+        im = ax4.imshow(pivot_table.values, cmap='YlOrRd', aspect='auto', interpolation='nearest')
+        ax4.set_title(f"{STATION_NAME}地铁站近3年月度平均客流热力图", 
+                     fontsize=14, fontproperties=my_font, pad=15)
+        ax4.set_xlabel("年份", fontsize=12, fontproperties=my_font)
+        ax4.set_ylabel("月份", fontsize=12, fontproperties=my_font)
+        ax4.set_xticks(range(len(pivot_table.columns)))
+        ax4.set_xticklabels(pivot_table.columns.astype(str), fontproperties=my_font)
+        ax4.set_yticks(range(len(pivot_table.index)))
+        ax4.set_yticklabels(pivot_table.index.astype(str), fontproperties=my_font)
+        
+        # 添加颜色条
+        cbar = plt.colorbar(im, ax=ax4)
+        cbar.set_label('平均客流量（人次/天）', fontsize=10, fontproperties=my_font)
+        
+        # 在热力图上添加数值
+        for i in range(len(pivot_table.index)):
+            for j in range(len(pivot_table.columns)):
+                value = pivot_table.iloc[i, j]
+                if not pd.isna(value):
+                    ax4.text(j, i, f'{int(value)}', 
+                            ha='center', va='center', 
+                            color='white' if value > pivot_table.values.mean() else 'black',
+                            fontsize=8, fontproperties=my_font)
+        
+        plt.suptitle(f"{STATION_NAME}地铁站近3年客流情况综合分析", 
+                    fontsize=16, fontproperties=my_font, y=0.995)
+        plt.tight_layout(rect=[0, 0, 1, 0.99])
+        
+        # 保存图片
+        output_path = f"{STATION_NAME}_近3年客流分析.png"
+        plt.savefig(output_path, dpi=150, bbox_inches='tight')
+        print(f"\n✓ 图表已成功保存至: {os.path.abspath(output_path)}")
+        
+        # 显示统计信息
+        print("\n=== 统计摘要 ===")
+        print(f"数据时间范围: {df_day['SQUAD_DATE'].min().strftime('%Y-%m-%d')} 至 {df_day['SQUAD_DATE'].max().strftime('%Y-%m-%d')}")
+        print(f"总天数: {len(df_day)} 天")
+        print(f"\n总客流统计:")
+        print(f"  日均: {df_day['PASSENGER_NUM'].mean():.0f} 人次")
+        print(f"  最大值: {df_day['PASSENGER_NUM'].max():.0f} 人次 ({df_day.loc[df_day['PASSENGER_NUM'].idxmax(), 'SQUAD_DATE'].strftime('%Y-%m-%d')})")
+        print(f"  最小值: {df_day['PASSENGER_NUM'].min():.0f} 人次 ({df_day.loc[df_day['PASSENGER_NUM'].idxmin(), 'SQUAD_DATE'].strftime('%Y-%m-%d')})")
+        print(f"  总计: {df_day['PASSENGER_NUM'].sum() / 10000:.1f} 万人次")
+        
+        print(f"\n进站量统计:")
+        print(f"  日均: {df_day['ENTRY_NUM'].mean():.0f} 人次")
+        print(f"  总计: {df_day['ENTRY_NUM'].sum() / 10000:.1f} 万人次")
+        
+        print(f"\n出站量统计:")
+        print(f"  日均: {df_day['EXIT_NUM'].mean():.0f} 人次")
+        print(f"  总计: {df_day['EXIT_NUM'].sum() / 10000:.1f} 万人次")
+        
+        print(f"\n换乘量统计:")
+        print(f"  日均: {df_day['CHANGE_NUM'].mean():.0f} 人次")
+        print(f"  总计: {df_day['CHANGE_NUM'].sum() / 10000:.1f} 万人次")
+        
+        # 年度对比
+        print(f"\n年度对比:")
+        for _, row in df_yearly.iterrows():
+            print(f"  {int(row['YEAR'])}年: 总客流 {row['PASSENGER_SUM']/10000:.1f}万人次, "
+                  f"日均 {row['PASSENGER_MEAN']:.0f}人次")
+        
+        # 关闭图形以释放内存（不显示窗口，避免在无GUI环境中卡住）
+        plt.close()
+        print("✓ 图表生成完成")
+        
+except pymssql.Error as db_error:
+    print(f"数据库连接错误: {db_error}")
+    print("请检查:")
+    print("1. 数据库服务器是否可访问")
+    print("2. 数据库连接配置是否正确")
+    print("3. 网络连接是否正常")
+    import traceback
+    traceback.print_exc()
+except ImportError as import_error:
+    print(f"导入模块错误: {import_error}")
+    print("请确保已安装必要的依赖包:")
+    print("  pip install pandas pymssql matplotlib numpy")
+    import traceback
+    traceback.print_exc()
+except Exception as e:
+    print(f"发生错误: {e}")
+    import traceback
+    traceback.print_exc()

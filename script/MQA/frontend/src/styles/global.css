@@ -1,0 +1,131 @@
+/* 全局样式 */
+:root {
+  --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --header-gradient: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #7e8ba3 100%);
+  --card-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  --card-shadow-hover: 0 4px 20px rgba(0, 0, 0, 0.12);
+  --border-radius: 12px;
+  --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* 卡片动画 */
+.el-card {
+  transition: var(--transition);
+}
+
+.el-card:hover {
+  box-shadow: var(--card-shadow-hover);
+}
+
+/* 按钮增强 */
+.el-button--primary {
+  background: var(--primary-gradient);
+  border: none;
+}
+
+.el-button--primary:hover {
+  background: var(--primary-gradient);
+  opacity: 0.9;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+}
+
+/* 输入框增强 */
+.el-input__inner:focus,
+.el-textarea__inner:focus {
+  border-color: #409eff;
+  box-shadow: 0 0 0 3px rgba(64, 158, 255, 0.1);
+}
+
+/* 标签增强 */
+.el-tag {
+  transition: var(--transition);
+}
+
+/* 表格增强 */
+.el-table {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.el-table th {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  font-weight: 600;
+}
+
+.el-table tr:hover {
+  background-color: #f0f7ff;
+}
+
+/* 分割线增强 */
+.el-divider__text {
+  background-color: var(--el-bg-color);
+  padding: 0 16px;
+  font-weight: 600;
+  color: #409eff;
+}
+
+/* 折叠面板增强 */
+.el-collapse-item__header {
+  font-weight: 500;
+}
+
+/* 统计数字增强 */
+.el-statistic__number {
+  font-weight: 700;
+}
+
+/* 响应式优化 */
+@media (max-width: 768px) {
+  .query-page {
+    padding: 0 12px;
+  }
+  
+  .app-main {
+    padding: 16px;
+  }
+  
+  .result-stats {
+    flex-direction: column;
+    gap: 20px;
+  }
+  
+  .chart-container {
+    height: 300px;
+  }
+}
+
+/* 加载动画 */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.loading {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+

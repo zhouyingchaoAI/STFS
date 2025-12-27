@@ -141,6 +141,25 @@ class HolidayGenerator:
                 "国庆节": [("2025-10-01", "2025-10-08")],  # 预估
                 "调休补班": [("2025-01-26","2025-01-26"),("2025-02-08","2025-02-08"),("2025-04-27","2025-04-27"),("2025-09-28","2025-09-28"),("2025-10-11","2025-10-11")],  # 预估
                 "暑假": [("2025-07-01", "2025-08-31")]   # 预估
+            },
+            # 2026年节假日安排（根据国务院办公厅通知）
+            2026: {
+                "元旦": [("2026-01-01", "2026-01-03")],
+                "春节": [("2026-02-15", "2026-02-23")],
+                "清明节": [("2026-04-04", "2026-04-06")],
+                "劳动节": [("2026-05-01", "2026-05-05")],
+                "端午节": [("2026-06-19", "2026-06-21")],
+                "中秋节": [("2026-09-25", "2026-09-27")],
+                "国庆节": [("2026-10-01", "2026-10-07")],
+                "调休补班": [
+                    ("2026-01-04", "2026-01-04"),  # 元旦调休补班（1月4日周日上班）
+                    ("2026-02-14", "2026-02-14"),  # 春节调休补班（2月14日周六上班）
+                    ("2026-02-28", "2026-02-28"),  # 春节调休补班（2月28日周六上班）
+                    ("2026-05-09", "2026-05-09"),  # 劳动节调休补班（5月9日周六上班）
+                    ("2026-09-20", "2026-09-20"),  # 国庆节调休补班（9月20日周日上班）
+                    ("2026-10-10", "2026-10-10")   # 国庆节调休补班（10月10日周六上班）
+                ],
+                "暑假": [("2026-07-01", "2026-08-31")]  # 预估
             }
         }
     
@@ -188,12 +207,15 @@ class HolidayGenerator:
                 
             year_holidays = self.holiday_arrangements[year]
             
-            # 检查调休补班
+            # 先检查是否是调休补班日（用于后续判断）
+            is_makeup_day = False
             if "调休补班" in year_holidays:
                 for start_str, end_str in year_holidays["调休补班"]:
                     makeup_dates = self.parse_date_range(start_str, end_str)
                     if date in makeup_dates:
+                        is_makeup_day = True
                         matches.append((9, 0, 0))
+                        break
             
             # 检查寒假和暑假
             for vacation_name, vacation_type in [("暑假", 11), ("寒假", 12)]:
@@ -202,6 +224,15 @@ class HolidayGenerator:
                         vacation_dates = self.parse_date_range(start_str, end_str)
                         if date in vacation_dates:
                             matches.append((vacation_type, 0, 0))
+            
+            # 先检查是否是调休补班日（用于后续判断）
+            is_makeup_day = False
+            if "调休补班" in year_holidays:
+                for start_str, end_str in year_holidays["调休补班"]:
+                    makeup_dates = self.parse_date_range(start_str, end_str)
+                    if date in makeup_dates:
+                        is_makeup_day = True
+                        break
             
             # 检查法定节假日
             holiday_mapping = {
@@ -222,20 +253,20 @@ class HolidayGenerator:
                         which_day = holiday_dates.index(date) + 1
                         matches.append((holiday_type, total_days, which_day))
                     
-                    # 检查节前一天
-                    if len(holiday_dates) > 0:
+                    # 检查节前一天（如果不是调休补班日）
+                    if not is_makeup_day and len(holiday_dates) > 0:
                         prev_day = holiday_dates[0] - timedelta(days=1)
                         if date == prev_day:
                             matches.append((holiday_type, 0, 0))  # 节前一天，f_HolidayDays=0
                     
-                    # 检查节后一天
-                    if len(holiday_dates) > 0:
+                    # 检查节后一天（如果不是调休补班日）
+                    if not is_makeup_day and len(holiday_dates) > 0:
                         next_day = holiday_dates[-1] + timedelta(days=1)
                         if date == next_day:
                             matches.append((holiday_type, 0, total_days + 1))  # 节后一天，f_HolidayDays=0
                     
-                    # 对于国庆这样的长假，可能需要检查节后第二天
-                    if holiday_type == 7 and total_days >= 7:  # 国庆等长假
+                    # 对于国庆这样的长假，可能需要检查节后第二天（如果不是调休补班日）
+                    if not is_makeup_day and holiday_type == 7 and total_days >= 7:  # 国庆等长假
                         if len(holiday_dates) > 0:
                             next_next_day = holiday_dates[-1] + timedelta(days=2)
                             if date == next_next_day:
@@ -258,7 +289,7 @@ class HolidayGenerator:
         
         return matches[0]
     
-    def generate_holiday_data(self, start_date: str = "20170101", end_date: str = "20251231") -> pd.DataFrame:
+    def generate_holiday_data(self, start_date: str = "20170101", end_date: str = "20261231") -> pd.DataFrame:
         """
         生成指定范围内的节假日数据
         
@@ -361,7 +392,7 @@ def main():
     
     # 生成指定范围的数据
     start_date = "20171211"
-    end_date = "20251231"
+    end_date = "20261231"
     
     # 生成数据
     df = generator.generate_holiday_data(start_date, end_date)

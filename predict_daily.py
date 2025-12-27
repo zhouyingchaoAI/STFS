@@ -96,6 +96,7 @@ def predict_and_plot_timeseries_flow_daily(
     # 保留因子列
     factor_cols = [
         'F_DATE',
+        'F_YEAR',
         'F_WEEK',
         'F_HOLIDAYTYPE',
         'F_HOLIDAYDAYS',

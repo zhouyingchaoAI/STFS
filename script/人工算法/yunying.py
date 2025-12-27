@@ -138,27 +138,27 @@ def read_station_daily_flow_history(metric_type: str, start_date: str, end_date:
 
         query = f"""
         SELECT 
-            S.ID,
+            MIN(S.ID),
             REPLACE(S.SQUAD_DATE, '-', '') AS F_DATE,
-            S.STATION_ID AS F_LINENO,
+            S.STATION_NAME AS F_LINENO,
             S.STATION_NAME AS F_LINENAME,
-            {selected_field} AS F_KLCOUNT,
-            C.F_DATEFEATURES,
-            C.F_ISHOLIDAY,
-            C.F_ISNONGLI,
-            C.F_ISYANGLI,
-            C.F_NEXTDAY,
-            C.F_HOLIDAYTHDAY,
-            C.IS_FIRST,
-            CC.F_YEAR,
-            CC.F_DAYOFWEEK,
-            CC.F_WEEK,
-            CC.F_HOLIDAYTYPE,
-            CC.F_HOLIDAYDAYS,
-            CC.F_HOLIDAYWHICHDAY,
-            CC.COVID19,
-            CC.F_WEATHER,
-            W.F_TQQK AS WEATHER_TYPE
+            SUM({selected_field}) AS F_KLCOUNT,
+            MIN(C.F_DATEFEATURES) AS F_DATEFEATURES,
+            MIN(C.F_ISHOLIDAY) AS F_ISHOLIDAY,
+            MIN(C.F_ISNONGLI) AS F_ISNONGLI,
+            MIN(C.F_ISYANGLI) AS F_ISYANGLI,
+            MIN(C.F_NEXTDAY) AS F_NEXTDAY,
+            MIN(C.F_HOLIDAYTHDAY) AS F_HOLIDAYTHDAY,
+            MIN(C.IS_FIRST) AS IS_FIRST,
+            MIN(CC.F_YEAR) AS F_YEAR,
+            MIN(CC.F_DAYOFWEEK) AS F_DAYOFWEEK,
+            MIN(CC.F_WEEK) AS F_WEEK,
+            MIN(CC.F_HOLIDAYTYPE) AS F_HOLIDAYTYPE,
+            MIN(CC.F_HOLIDAYDAYS) AS F_HOLIDAYDAYS,
+            MIN(CC.F_HOLIDAYWHICHDAY) AS F_HOLIDAYWHICHDAY,
+            MIN(CC.COVID19) AS COVID19,
+            MIN(CC.F_WEATHER) AS F_WEATHER,
+            MIN(W.F_TQQK) AS WEATHER_TYPE
         FROM 
             [StationFlowPredict].[dbo].[STATION_FLOW_HISTORY] AS S
         LEFT JOIN 
@@ -174,8 +174,10 @@ def read_station_daily_flow_history(metric_type: str, start_date: str, end_date:
             REPLACE(S.SQUAD_DATE, '-', '') >= '{start_date}'
             AND REPLACE(S.SQUAD_DATE, '-', '') <= '{end_date}'
             {station_filter}
+        GROUP BY 
+            S.STATION_NAME, REPLACE(S.SQUAD_DATE, '-', '')
         ORDER BY 
-            REPLACE(S.SQUAD_DATE, '-', ''), S.STATION_ID
+            S.STATION_NAME, REPLACE(S.SQUAD_DATE, '-', '')
         """
 
         if station_filter:

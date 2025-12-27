@@ -25,6 +25,18 @@ DEFAULT_KNN_FACTORS = [
     'F_WEEK', 'F_HOLIDAYTYPE', 'F_HOLIDAYDAYS', 'F_HOLIDAYWHICHDAY',
     'F_DAYOFWEEK', 'WEATHER_TYPE', 'F_YEAR'
 ]
+def sanitize_line_no(line_no: str) -> str:
+    """清理线路名，将不适合作为文件名的字符替换为安全字符"""
+    if not isinstance(line_no, str):
+        line_no = str(line_no)
+    sanitized = line_no.replace('/', '-').replace('\\', '-').replace(':', '-')
+    sanitized = sanitized.replace('*', '-').replace('?', '-').replace('"', '-')
+    sanitized = sanitized.replace('<', '-').replace('>', '-').replace('|', '-')
+    sanitized = sanitized.strip('. ')
+    if not sanitized:
+        sanitized = 'unknown'
+    return sanitized
+
 
 # # 预设每条线路的权重配置
 # DEFAULT_LINE_WEIGHTS = {
@@ -228,11 +240,28 @@ class KNNFlowPredictor:
             valid_predictions = 0
             for i in range(days):
                 base_flow = last_year_base_flows[i] if i < len(last_year_base_flows) else np.nan
-                # 获取预测日的F_DATEFEATURES
+                # 获取预测日的日期类型（基于F_HOLIDAYTYPE和F_DAYOFWEEK计算）
                 pred_date = (pred_start_dt + timedelta(days=i)).strftime("%Y%m%d")
                 pred_day_rows = line_data_sorted[line_data_sorted['F_DATE'] == pred_date]
-                if not pred_day_rows.empty and "F_DATEFEATURES" in pred_day_rows.columns:
-                    pred_day_features = int(pred_day_rows.iloc[0]["F_DATEFEATURES"])
+                if not pred_day_rows.empty:
+                    row = pred_day_rows.iloc[0]
+                    # 如果F_HOLIDAYTYPE不为空，则为节假日(0)
+                    if pd.notna(row.get('F_HOLIDAYTYPE')) and str(row.get('F_HOLIDAYTYPE')).strip() != '':
+                        pred_day_features = 0  # 节假日
+                    else:
+                        # 如果F_DAYOFWEEK是6或7（周六或周日），则为周末(2)
+                        day_of_week = row.get('F_DAYOFWEEK')
+                        if pd.notna(day_of_week):
+                            try:
+                                dow = int(day_of_week)
+                                if dow in [6, 7]:
+                                    pred_day_features = 2  # 周末
+                                else:
+                                    pred_day_features = 1  # 平日
+                            except (ValueError, TypeError):
+                                pred_day_features = 1  # 默认平日
+                        else:
+                            pred_day_features = 1  # 默认平日
                 else:
                     pred_day_features = None
                 # 判断是否节假日
@@ -345,8 +374,9 @@ class KNNFlowPredictor:
             mae = mean_absolute_error(y_true_original, y_pred_original)
             logger.info(f"最佳模型: K={best_k}, MSE={mse:.2f}, MAE={mae:.2f}")
             version = model_version or self.version
-            model_path = os.path.join(self.model_dir, f"knn_line_{line_no}_daily_v{version}.pkl")
-            scaler_path = os.path.join(self.model_dir, f"knn_scaler_line_{line_no}_daily_v{version}.pkl")
+            safe_line_no = sanitize_line_no(line_no)
+            model_path = os.path.join(self.model_dir, f"knn_line_{safe_line_no}_daily_v{version}.pkl")
+            scaler_path = os.path.join(self.model_dir, f"knn_scaler_line_{safe_line_no}_daily_v{version}.pkl")
             joblib.dump(best_model, model_path)
             joblib.dump(best_scaler, scaler_path)
             self.models[line_no] = best_model
@@ -406,8 +436,9 @@ class KNNFlowPredictor:
         """KNN预测的原始逻辑"""
         try:
             version = model_version or self.version
-            model_path = os.path.join(self.model_dir, f"knn_line_{line_no}_daily_v{version}.pkl")
-            scaler_path = os.path.join(self.model_dir, f"knn_scaler_line_{line_no}_daily_v{version}.pkl")
+            safe_line_no = sanitize_line_no(line_no)
+            model_path = os.path.join(self.model_dir, f"knn_line_{safe_line_no}_daily_v{version}.pkl")
+            scaler_path = os.path.join(self.model_dir, f"knn_scaler_line_{safe_line_no}_daily_v{version}.pkl")
             if not os.path.exists(model_path) or not os.path.exists(scaler_path):
                 return None, f"模型文件未找到: {model_path}"
             model = joblib.load(model_path)
@@ -513,7 +544,8 @@ class KNNFlowPredictor:
             'config': self.config,
             'algorithm_weights': weights
         }
-        info_path = os.path.join(self.model_dir, f"model_info_line_{line_no}_daily_v{version}.json")
+        safe_line_no = sanitize_line_no(line_no)
+        info_path = os.path.join(self.model_dir, f"model_info_line_{safe_line_no}_daily_v{version}.json")
         try:
             with open(info_path, 'w', encoding='utf-8') as f:
                 json.dump(info, f, ensure_ascii=False, indent=2)
@@ -551,7 +583,8 @@ class KNNFlowPredictor:
             except Exception as e:
                 diagnosis['data_issues'].append(f"数据准备失败: {str(e)}")
             version = self.version
-            model_path = os.path.join(self.model_dir, f"knn_line_{line_no}_daily_v{version}.pkl")
+            safe_line_no = sanitize_line_no(line_no)
+            model_path = os.path.join(self.model_dir, f"knn_line_{safe_line_no}_daily_v{version}.pkl")
             if not os.path.exists(model_path):
                 diagnosis['model_issues'].append("KNN模型文件不存在")
             try:

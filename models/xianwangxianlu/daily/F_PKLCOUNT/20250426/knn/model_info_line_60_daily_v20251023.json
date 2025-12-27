@@ -1,8 +1,8 @@
 {
   "algorithm": "knn",
-  "mse": 114087.36207798462,
-  "mae": 105.70102413888873,
-  "train_date": "20251023",
+  "mse": 0.0,
+  "mae": 0.0,
+  "train_date": "20251223",
   "line_no": "60",
   "version": "20251023",
   "factors": [

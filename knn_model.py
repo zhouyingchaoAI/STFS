@@ -23,9 +23,8 @@ def get_logger():
 logger = get_logger()
 
 DEFAULT_KNN_FACTORS = [
-    'F_WEEK', 'F_DATEFEATURES', 'F_HOLIDAYTYPE', 'F_ISHOLIDAY',
-    'F_ISNONGLI', 'F_ISYANGLI', 'F_NEXTDAY', 'F_HOLIDAYDAYS',
-    'F_HOLIDAYTHDAY', 'IS_FIRST', 'WEATHER_TYPE'
+    'F_WEEK', 'F_HOLIDAYTYPE', 'F_HOLIDAYDAYS',
+    'WEATHER_TYPE'
 ]
 
 class KNNFlowPredictor:

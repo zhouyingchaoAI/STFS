@@ -18,7 +18,8 @@ DEFAULT_CONFIG = {
         "user": "sa",
         "password": "Chency@123",
         "database": "master",
-        "port": 1433
+        "port": 1433,
+        "charset": "utf8"  # 默认使用 utf8，确保 NVARCHAR 字段正确读取中文
     },
     "QUERY_START_DATE": 20230101,
     "STATION_FILTER_NAMES": ["五一广场", "碧沙湖", "橘子洲"]
@@ -54,14 +55,191 @@ _db_conf = _config["db"]
 QUERY_START_DATE = _config.get("QUERY_START_DATE", 20230101)
 STATION_FILTER_NAMES = _config.get("STATION_FILTER_NAMES", ["五一广场", "碧沙湖", "橘子洲"])
 
-def get_db_conn():
-    return pymssql.connect(
-        server=_db_conf["server"],
-        user=_db_conf["user"],
-        password=_db_conf["password"],
-        database=_db_conf["database"],
-        port=_db_conf["port"]
-    )
+def get_db_conn(charset=None):
+    """
+    获取数据库连接
+    
+    参数:
+        charset: 字符集，None 表示使用默认，'utf8' 用于读取 NVARCHAR 字段
+    
+    注意：
+    - 对于读取 NVARCHAR 字段：建议使用 charset='utf8'
+    - 对于写入 NVARCHAR 字段：使用默认连接（charset=None）
+    - pymssql 在处理 NVARCHAR 字段时存在编码问题，需要根据读写操作选择合适的连接方式
+    """
+    conn_params = {
+        "server": _db_conf["server"],
+        "user": _db_conf["user"],
+        "password": _db_conf["password"],
+        "database": _db_conf["database"],
+        "port": _db_conf["port"]
+    }
+    
+    # 如果指定了 charset，则使用
+    if charset:
+            conn_params["charset"] = charset
+    # 否则使用配置文件中的设置，如果配置文件中也没有，则不设置 charset（默认）
+    elif "charset" in _db_conf:
+        config_charset = _db_conf.get("charset")
+        # 如果配置文件指定了 utf8，不设置（因为写入时会导致乱码）
+        # 如果配置文件指定了其他字符集，使用它
+        if config_charset and config_charset != "utf8":
+            conn_params["charset"] = config_charset
+    
+    return pymssql.connect(**conn_params)
+
+def has_chinese(text: str) -> bool:
+    """
+    检测字符串是否包含中文字符
+    
+    参数:
+        text: 待检测的字符串
+        
+    返回:
+        如果包含中文字符返回 True，否则返回 False
+    """
+    if not isinstance(text, str):
+        return False
+    # 中文字符 Unicode 范围：\u4e00-\u9fff
+    return any('\u4e00' <= ch <= '\u9fff' for ch in text)
+
+
+def smart_encode_fix(value):
+    """
+    智能编码修复函数
+    
+    修复 pymssql 写入 NVARCHAR 字段时产生的 GBK 编码乱码问题
+    pymssql 会将 Unicode 字符串错误地转换为 GBK 编码写入 NVARCHAR 字段，
+    读取时使用 utf8 字符集连接会将其解码为 latin-1 编码的乱码字符串
+    
+    参数:
+        value: 需要修复的值（可能是 str、bytes、None 或其他类型）
+        
+    返回:
+        修复后的字符串，如果无法修复则返回原值或字符串表示
+    """
+    # 处理 None
+    if value is None:
+        return ''
+    
+    # 处理 bytes 类型
+    if isinstance(value, bytes):
+        try:
+            value = value.decode('utf-8')
+        except UnicodeDecodeError:
+            try:
+                value = value.decode('gbk')
+            except UnicodeDecodeError:
+                return value.decode('utf-8', errors='replace')
+    
+    # 转换为字符串
+    if not isinstance(value, str):
+        return str(value) if value is not None else ''
+    
+    # 检查是否包含乱码字符（latin-1 编码的中文字符）
+    # 乱码特征：字符的 ord 值在 127-255 之间，但不是有效的中文字符
+    if any(ord(c) > 127 and ord(c) < 256 for c in value):
+        try:
+            # 尝试从 latin-1 重新编码为 GBK（SQL Server 中文数据通常是 GBK）
+            fixed = value.encode('latin-1').decode('gbk')
+            # 验证修复结果是否包含中文
+            if has_chinese(fixed):
+                return fixed
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            try:
+                # 尝试从 latin-1 重新编码为 UTF-8
+                fixed = value.encode('latin-1').decode('utf-8')
+                if has_chinese(fixed):
+                    return fixed
+            except (UnicodeEncodeError, UnicodeDecodeError):
+                pass
+    
+    # 如果无法修复，返回原值
+    return value
+
+
+def fix_encoding_in_dict(data: dict) -> dict:
+    """
+    修复字典中所有值的编码问题
+    
+    参数:
+        data: 需要修复的字典
+        
+    返回:
+        修复后的字典
+    """
+    if not isinstance(data, dict):
+        return data
+    
+    fixed = {}
+    for key, value in data.items():
+        # 修复 key
+        fixed_key = smart_encode_fix(key)
+        
+        # 修复 value
+        if isinstance(value, str):
+            fixed_value = smart_encode_fix(value)
+        elif isinstance(value, dict):
+            fixed_value = fix_encoding_in_dict(value)
+        elif isinstance(value, list):
+            fixed_value = fix_encoding_in_list(value)
+        else:
+            fixed_value = value
+        
+        fixed[fixed_key] = fixed_value
+    
+    return fixed
+
+
+def fix_encoding_in_list(data: list) -> list:
+    """
+    修复列表中所有元素的编码问题
+    
+    参数:
+        data: 需要修复的列表
+        
+    返回:
+        修复后的列表
+    """
+    if not isinstance(data, list):
+        return data
+    
+    fixed = []
+    for item in data:
+        if isinstance(item, str):
+            fixed.append(smart_encode_fix(item))
+        elif isinstance(item, dict):
+            fixed.append(fix_encoding_in_dict(item))
+        elif isinstance(item, list):
+            fixed.append(fix_encoding_in_list(item))
+        else:
+            fixed.append(item)
+    
+    return fixed
+
+
+def fix_dataframe_encoding(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    修复 DataFrame 中所有字符串列的编码问题
+    
+    参数:
+        df: 需要修复的 DataFrame
+        
+    返回:
+        修复后的 DataFrame
+    """
+    if df is None or df.empty:
+        return df
+    
+    df = df.copy()
+    
+    # 对每个字符串列应用编码修复
+    for col in df.columns:
+        if df[col].dtype == 'object':  # 字符串列
+            df[col] = df[col].astype(str).apply(smart_encode_fix)
+    
+    return df
+
 
 def load_stationid_stationname_to_lineid(yaml_path="stationid_stationname_to_lineid.yaml"):
     """
@@ -78,21 +256,23 @@ def load_stationid_stationname_to_lineid(yaml_path="stationid_stationname_to_lin
             mapping[(station_id, station_name)] = v
     return mapping
 
-def get_lineids_by_station(station, mapping=None, yaml_path="stationid_stationname_to_lineid.yaml"):
+def get_lineids_by_station(station_name, yaml_path="stationid_stationname_to_lineid.yaml"):
     """
-    输入 station_id 或 station_name，返回对应的线路ID列表
-    station: 可以是 station_id（字符串），也可以是 station_name（字符串）
-    mapping: 可选，已加载的映射表（dict），否则自动加载
-    返回: set(line_id)
+    读取yaml，通过输入STATION_NAME返回[{LINE_ID: xx, STATION_ID: xx}, ...]
     """
-    if mapping is None:
-        mapping = load_stationid_stationname_to_lineid(yaml_path)
-    result = set()
-    # 先尝试作为station_id查找
-    for (station_id, station_name), line_ids in mapping.items():
-        if station == station_id or station == station_name:
-            result.update(line_ids)
-    return list(result)
+    try:
+        with open(yaml_path, "r", encoding="utf-8") as f:
+            station_map = yaml.safe_load(f)
+        results = station_map.get(station_name)
+        if results:
+            return results
+        else:
+            return None
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        pass
+        return None
 
 def _get_station_filter_sql(alias="S"):
     """
@@ -128,7 +308,8 @@ def read_station_daily_flow_history(metric_type: str) -> pd.DataFrame:
         站点客流数据的 DataFrame
     """
     try:
-        conn = get_db_conn()
+        # 读取 NVARCHAR 字段时使用 utf8 字符集连接，确保正确读取中文
+        conn = get_db_conn(charset='utf8')
         metric_field_mapping = {
             "F_PKLCOUNT": "S.PASSENGER_NUM",
             "F_ENTRANCE": "S.ENTRY_NUM", 
@@ -148,60 +329,59 @@ def read_station_daily_flow_history(metric_type: str) -> pd.DataFrame:
 
         query = f"""
         SELECT 
-            S.ID,
+            MIN(S.ID),
             REPLACE(S.SQUAD_DATE, '-', '') AS F_DATE,
-            S.STATION_ID AS F_LINENO,
+            S.STATION_NAME AS F_LINENO,
             S.STATION_NAME AS F_LINENAME,
-            {selected_field} AS F_KLCOUNT,
-            C.F_DATEFEATURES,
-            C.F_ISHOLIDAY,
-            C.F_ISNONGLI,
-            C.F_ISYANGLI,
-            C.F_NEXTDAY,
-            C.F_HOLIDAYTHDAY,
-            C.IS_FIRST,
-            CC.F_YEAR,
-            CC.F_DAYOFWEEK,
-            CC.F_WEEK,
-            CC.F_HOLIDAYTYPE,
-            CC.F_HOLIDAYDAYS,
-            CC.F_HOLIDAYWHICHDAY,
-            CC.COVID19,
-            CC.F_WEATHER,
-            W.F_TQQK AS WEATHER_TYPE
+            SUM({selected_field}) AS F_KLCOUNT,
+            MIN(CC.F_YEAR) AS F_YEAR,
+            MIN(CC.F_DAYOFWEEK) AS F_DAYOFWEEK,
+            MIN(CC.F_WEEK) AS F_WEEK,
+            MIN(CC.F_HOLIDAYTYPE) AS F_HOLIDAYTYPE,
+            MIN(CC.F_HOLIDAYDAYS) AS F_HOLIDAYDAYS,
+            MIN(CC.F_HOLIDAYWHICHDAY) AS F_HOLIDAYWHICHDAY,
+            MIN(CC.COVID19) AS COVID19,
+            MIN(CC.F_WEATHER) AS F_WEATHER,
+            MIN(W.F_TQQK) AS WEATHER_TYPE
         FROM 
             [StationFlowPredict].[dbo].[STATION_FLOW_HISTORY] AS S
-        LEFT JOIN 
-            master.dbo.LSTM_COMMON_HOLIDAYFEATURE AS C
-            ON REPLACE(S.SQUAD_DATE, '-', '') = C.F_DATE
         LEFT JOIN 
             master.dbo.CalendarHistory AS CC
             ON REPLACE(S.SQUAD_DATE, '-', '') = CC.F_DATE
         LEFT JOIN
-            master.dbo.WeatherHistory AS W
+            master.dbo.WeatherFuture AS W
             ON REPLACE(S.SQUAD_DATE, '-', '') = W.F_DATE
         WHERE 
             REPLACE(S.SQUAD_DATE, '-', '') >= '{QUERY_START_DATE}'
             {station_filter}
+        GROUP BY 
+            S.STATION_NAME, REPLACE(S.SQUAD_DATE, '-', '')
         ORDER BY 
-            REPLACE(S.SQUAD_DATE, '-', ''), S.STATION_ID
+            REPLACE(S.SQUAD_DATE, '-', ''), S.STATION_NAME
         """
 
 
         df = pd.read_sql(query, conn)
         conn.close()
+        
+        # 应用编码修复，特别处理 NVARCHAR 字段（如 F_LINENAME）的乱码问题
+        df = fix_dataframe_encoding(df)
 
         # 合并相同F_DATE和F_LINENAME的数据（数值字段求和，其余字段取第一个）
         sum_fields = ['F_KLCOUNT']
         first_fields = [
-            'F_LINENO', 'F_LINENAME', 'F_WEEK', 'F_DATEFEATURES', 'F_HOLIDAYTYPE',
-            'F_ISHOLIDAY', 'F_ISNONGLI', 'F_ISYANGLI', 'F_NEXTDAY', 'F_HOLIDAYDAYS',
-            'F_HOLIDAYTHDAY', 'IS_FIRST', 'WEATHER_TYPE', 'F_YEAR', 'F_DAYOFWEEK', 'F_HOLIDAYWHICHDAY', 'COVID19', 'F_WEATHER'
+            'F_LINENO', 'F_LINENAME', 'F_WEEK', 'F_HOLIDAYTYPE',
+            'F_HOLIDAYDAYS', 'WEATHER_TYPE', 'F_YEAR', 'F_DAYOFWEEK', 'F_HOLIDAYWHICHDAY', 'COVID19', 'F_WEATHER'
         ]
         grouped = df.groupby(['F_DATE', 'F_LINENAME'], as_index=False).agg(
             {**{f: 'sum' for f in sum_fields},
              **{f: 'first' for f in first_fields}}
         )
+
+        # 应用编码修复，特别处理 NVARCHAR 字段（如 F_LINENAME）的乱码问题
+        grouped = fix_dataframe_encoding(grouped)
+
+
         return grouped
 
     except Exception as e:
@@ -219,7 +399,8 @@ def read_line_hourly_flow_history(metric_type: str, query_start_date: str = None
         小时客流数据的 DataFrame
     """
     try:
-        conn = get_db_conn()
+        # 读取 NVARCHAR 字段时使用 utf8 字符集连接，确保正确读取中文
+        conn = get_db_conn(charset='utf8')
 
         metric_field_mapping = {
             "F_PKLCOUNT": "H.F_KLCOUNT",
@@ -314,13 +495,6 @@ def read_line_hourly_flow_history(metric_type: str, query_start_date: str = None
             H.F_LINENAME,
             H.CREATETIME,
             H.CREATOR,
-            C.F_DATEFEATURES,
-            C.F_ISHOLIDAY,
-            C.F_ISNONGLI,
-            C.F_ISYANGLI,
-            C.F_NEXTDAY,
-            C.F_HOLIDAYTHDAY,
-            C.IS_FIRST,
             CC.F_YEAR,
             CC.F_DAYOFWEEK,
             CC.F_WEEK,
@@ -333,13 +507,10 @@ def read_line_hourly_flow_history(metric_type: str, query_start_date: str = None
         FROM 
             dbo.LineHourlyFlowHistory AS H
         LEFT JOIN 
-            dbo.LSTM_COMMON_HOLIDAYFEATURE AS C
-            ON H.F_DATE = C.F_DATE
-        LEFT JOIN 
             dbo.CalendarHistory AS CC
             ON H.F_DATE = CC.F_DATE
         LEFT JOIN
-            dbo.WeatherHistory AS W
+            dbo.WeatherFuture AS W
             ON H.F_DATE = W.F_DATE
         {where_sql}
         ORDER BY 
@@ -349,6 +520,10 @@ def read_line_hourly_flow_history(metric_type: str, query_start_date: str = None
         df = pd.read_sql(sql, conn)
         print(f"小时历史数据库读取完成，共有 {len(df)} 条数据")
         conn.close()
+        
+        # 应用编码修复，特别处理 NVARCHAR 字段（如 F_LINENAME）的乱码问题
+        df = fix_dataframe_encoding(df)
+        
         return df
     except Exception as e:
         raise RuntimeError(f"数据库读取失败: {e}")
@@ -367,7 +542,8 @@ def read_station_hourly_flow_history(metric_type: str, query_start_date: str = N
         站点小时客流数据的 DataFrame
     """
     try:
-        conn = get_db_conn()
+        # 读取 NVARCHAR 字段时使用 utf8 字符集连接，确保正确读取中文
+        conn = get_db_conn(charset='utf8')
         metric_field_mapping = {
             "F_PKLCOUNT": "S.PASSENGER_NUM",
             "F_ENTRANCE": "S.ENTRY_NUM", 
@@ -428,34 +604,33 @@ def read_station_hourly_flow_history(metric_type: str, query_start_date: str = N
 
         query = f"""
         SELECT 
-            S.ID,
+            MIN(S.ID),
             S.SQUAD_DATE AS F_DATE,
             S.TIME_SECTION_ID AS F_HOUR,
-            S.STATION_ID AS F_LINENO,
+            S.STATION_NAME AS F_LINENO,
             S.STATION_NAME AS F_LINENAME,
-            {selected_field} AS F_KLCOUNT,
-            C.F_WEEK,
-            C.F_DATEFEATURES,
-            C.F_HOLIDAYTYPE,
-            C.F_ISHOLIDAY,
-            C.F_ISNONGLI,
-            C.F_ISYANGLI,
-            C.F_NEXTDAY,
-            C.F_HOLIDAYDAYS,
-            C.F_HOLIDAYTHDAY,
-            C.IS_FIRST,
-            W.F_TQQK AS WEATHER_TYPE
+            SUM({selected_field}) AS F_KLCOUNT,
+            MIN(CC.F_WEEK) AS F_WEEK,
+            MIN(CC.F_HOLIDAYTYPE) AS F_HOLIDAYTYPE,
+            MIN(CC.F_HOLIDAYDAYS) AS F_HOLIDAYDAYS,
+            MIN(CC.F_YEAR) AS F_YEAR,
+            MIN(CC.F_DAYOFWEEK) AS F_DAYOFWEEK,
+            MIN(CC.F_WEATHER) AS F_WEATHER,
+            MIN(CC.F_HOLIDAYWHICHDAY) AS F_HOLIDAYWHICHDAY,
+            MIN(W.F_TQQK) AS WEATHER_TYPE
         FROM 
             [master].[dbo].[STATION_HOUR_HISTORY] AS S
-        LEFT JOIN 
-            master.dbo.LSTM_COMMON_HOLIDAYFEATURE AS C
-            ON S.SQUAD_DATE = C.F_DATE
         LEFT JOIN
-            master.dbo.WeatherHistory AS W
+            master.dbo.CalendarHistory AS CC
+            ON REPLACE(S.SQUAD_DATE, '-', '') = CC.F_DATE
+        LEFT JOIN
+            master.dbo.WeatherFuture AS W
             ON S.SQUAD_DATE = W.F_DATE
         {where_sql}
+        GROUP BY 
+            S.SQUAD_DATE, S.TIME_SECTION_ID, S.STATION_NAME
         ORDER BY 
-            S.SQUAD_DATE, S.TIME_SECTION_ID, S.STATION_ID
+            S.SQUAD_DATE, S.TIME_SECTION_ID, S.STATION_NAME
         """
 
         df = pd.read_sql(query, conn)
@@ -483,51 +658,56 @@ def read_station_hourly_flow_history(metric_type: str, query_start_date: str = N
                 where_sql2 = "WHERE " + " AND ".join(where_conditions2)
                 query2 = f"""
                 SELECT 
-                    S.ID,
+                    MIN(S.ID),
                     REPLACE(S.SQUAD_DATE, '-', '') AS F_DATE,
                     S.TIME_SECTION_ID AS F_HOUR,
-                    S.STATION_ID AS F_LINENO,
+                    S.STATION_NAME AS F_LINENO,
                     S.STATION_NAME AS F_LINENAME,
-                    {selected_field} AS F_KLCOUNT,
-                    C.F_WEEK,
-                    C.F_DATEFEATURES,
-                    C.F_HOLIDAYTYPE,
-                    C.F_ISHOLIDAY,
-                    C.F_ISNONGLI,
-                    C.F_ISYANGLI,
-                    C.F_NEXTDAY,
-                    C.F_HOLIDAYDAYS,
-                    C.F_HOLIDAYTHDAY,
-                    C.IS_FIRST,
-                    W.F_TQQK AS WEATHER_TYPE
+                    SUM({selected_field}) AS F_KLCOUNT,
+                    MIN(CC.F_WEEK) AS F_WEEK,
+                    MIN(CC.F_HOLIDAYTYPE) AS F_HOLIDAYTYPE,
+                    MIN(CC.F_HOLIDAYDAYS) AS F_HOLIDAYDAYS,
+                    MIN(CC.F_YEAR) AS F_YEAR,
+                    MIN(CC.F_DAYOFWEEK) AS F_DAYOFWEEK,
+                    MIN(CC.F_WEATHER) AS F_WEATHER,
+                    MIN(CC.F_HOLIDAYWHICHDAY) AS F_HOLIDAYWHICHDAY,
+                    MIN(W.F_TQQK) AS WEATHER_TYPE
                 FROM 
                     [StationFlowPredict].[dbo].[STATION_HOUR_HISTORY] AS S
-                LEFT JOIN 
-                    master.dbo.LSTM_COMMON_HOLIDAYFEATURE AS C
-                    ON REPLACE(S.SQUAD_DATE, '-', '') = C.F_DATE
                 LEFT JOIN
-                    master.dbo.WeatherHistory AS W
+                    master.dbo.CalendarHistory AS CC
+                    ON REPLACE(S.SQUAD_DATE, '-', '') = CC.F_DATE
+                LEFT JOIN
+                    master.dbo.WeatherFuture AS W
                     ON REPLACE(S.SQUAD_DATE, '-', '') = W.F_DATE
                 {where_sql2}
+                GROUP BY 
+                    REPLACE(S.SQUAD_DATE, '-', ''), S.TIME_SECTION_ID, S.STATION_NAME
                 ORDER BY 
-                    REPLACE(S.SQUAD_DATE, '-', ''), S.TIME_SECTION_ID, S.STATION_ID
+                    REPLACE(S.SQUAD_DATE, '-', ''), S.TIME_SECTION_ID, S.STATION_NAME
                 """
                 df = pd.read_sql(query2, conn)
         conn.close()
+        
+        # 应用编码修复，特别处理 NVARCHAR 字段（如 F_LINENAME）的乱码问题
+        df = fix_dataframe_encoding(df)
+        
         if 'F_HOUR' in df.columns:
             df['F_HOUR'] = pd.to_numeric(df['F_HOUR'], errors='coerce').astype('Int64')
 
         # 合并相同F_DATE、F_HOUR和F_LINENAME的数据（数值字段求和，其余字段取第一个）
         sum_fields = ['F_KLCOUNT']
         first_fields = [
-            'F_LINENO', 'F_LINENAME', 'F_WEEK', 'F_DATEFEATURES', 'F_HOLIDAYTYPE',
-            'F_ISHOLIDAY', 'F_ISNONGLI', 'F_ISYANGLI', 'F_NEXTDAY', 'F_HOLIDAYDAYS',
-            'F_HOLIDAYTHDAY', 'IS_FIRST', 'WEATHER_TYPE'
+            'F_LINENO', 'F_LINENAME', 'F_WEEK', 'F_HOLIDAYTYPE',
+            'F_HOLIDAYDAYS', 'WEATHER_TYPE', 'F_YEAR', 'F_DAYOFWEEK', 'F_WEATHER', 'F_HOLIDAYWHICHDAY'
         ]
         grouped = df.groupby(['F_DATE', 'F_HOUR', 'F_LINENAME'], as_index=False).agg(
             {**{f: 'sum' for f in sum_fields},
              **{f: 'first' for f in first_fields}}
         )
+
+        # 应用编码修复，特别处理 NVARCHAR 字段（如 F_LINENAME）的乱码问题
+        grouped = fix_dataframe_encoding(grouped)
         return grouped
 
     except Exception as e:
@@ -614,24 +794,17 @@ def read_station_hourly_flow_history_old(metric_type: str, query_start_date: str
             S.STATION_ID AS F_LINENO,
             S.STATION_NAME AS F_LINENAME,
             {selected_field} AS F_KLCOUNT,
-            C.F_WEEK,
-            C.F_DATEFEATURES,
-            C.F_HOLIDAYTYPE,
-            C.F_ISHOLIDAY,
-            C.F_ISNONGLI,
-            C.F_ISYANGLI,
-            C.F_NEXTDAY,
-            C.F_HOLIDAYDAYS,
-            C.F_HOLIDAYTHDAY,
-            C.IS_FIRST,
+            CC.F_WEEK,
+            CC.F_HOLIDAYTYPE,
+            CC.F_HOLIDAYDAYS,
             W.F_TQQK AS WEATHER_TYPE
         FROM 
             [master].[dbo].[STATION_HOUR_HISTORY] AS S
-        LEFT JOIN 
-            master.dbo.LSTM_COMMON_HOLIDAYFEATURE AS C
-            ON S.SQUAD_DATE = C.F_DATE
         LEFT JOIN
-            master.dbo.WeatherHistory AS W
+            master.dbo.CalendarHistory AS CC
+            ON REPLACE(S.SQUAD_DATE, '-', '') = CC.F_DATE
+        LEFT JOIN
+            master.dbo.WeatherFuture AS W
             ON S.SQUAD_DATE = W.F_DATE
         {where_sql}
         ORDER BY 
@@ -640,15 +813,18 @@ def read_station_hourly_flow_history_old(metric_type: str, query_start_date: str
 
         df = pd.read_sql(query, conn)
         conn.close()
+        
+        # 应用编码修复，特别处理 NVARCHAR 字段的乱码问题
+        df = fix_dataframe_encoding(df)
+        
         if 'F_HOUR' in df.columns:
             df['F_HOUR'] = pd.to_numeric(df['F_HOUR'], errors='coerce').astype('Int64')
 
         # 合并相同F_DATE、F_HOUR和F_LINENAME的数据（数值字段求和，其余字段取第一个）
         sum_fields = ['F_KLCOUNT']
         first_fields = [
-            'F_LINENO', 'F_LINENAME', 'F_WEEK', 'F_DATEFEATURES', 'F_HOLIDAYTYPE',
-            'F_ISHOLIDAY', 'F_ISNONGLI', 'F_ISYANGLI', 'F_NEXTDAY', 'F_HOLIDAYDAYS',
-            'F_HOLIDAYTHDAY', 'IS_FIRST', 'WEATHER_TYPE'
+            'F_LINENO', 'F_LINENAME', 'F_WEEK', 'F_HOLIDAYTYPE',
+            'F_HOLIDAYDAYS', 'WEATHER_TYPE'
         ]
         grouped = df.groupby(['F_DATE', 'F_HOUR', 'F_LINENAME'], as_index=False).agg(
             {**{f: 'sum' for f in sum_fields},
@@ -661,7 +837,7 @@ def read_station_hourly_flow_history_old(metric_type: str, query_start_date: str
 
 def fetch_holiday_features(predict_start_date: str = None, days: int = None) -> pd.DataFrame:
     """
-    从数据库读取节假日特征数据（仅dbo.LSTM_COMMON_HOLIDAYFEATURE表）
+    从数据库读取节假日特征数据（从CalendarHistory表读取）
 
     参数:
         predict_start_date (str, optional): 预测开始日期，格式为 'YYYYMMDD' 或 'YYYY-MM-DD'
@@ -671,19 +847,13 @@ def fetch_holiday_features(predict_start_date: str = None, days: int = None) -> 
         节假日特征数据的 DataFrame
     """
     try:
-        conn = get_db_conn()
+        # 读取 NVARCHAR 字段时使用 utf8 字符集连接，确保正确读取中文
+        conn = get_db_conn(charset='utf8')
 
         base_query = """
         
         SELECT 
-            C.F_DATE,
-            C.F_DATEFEATURES,
-            C.F_ISHOLIDAY,
-            C.F_ISNONGLI,
-            C.F_ISYANGLI,
-            C.F_NEXTDAY,
-            C.F_HOLIDAYTHDAY,
-            C.IS_FIRST,
+            CC.F_DATE,
             W.F_TQQK AS WEATHER_TYPE,
             CC.F_YEAR,
             CC.F_DAYOFWEEK,
@@ -694,19 +864,16 @@ def fetch_holiday_features(predict_start_date: str = None, days: int = None) -> 
             CC.COVID19,
             CC.F_WEATHER 
         FROM 
-            dbo.LSTM_COMMON_HOLIDAYFEATURE AS C
-        LEFT JOIN
-            dbo.WeatherHistory AS W
-            ON C.F_DATE = W.F_DATE
-        LEFT JOIN
             dbo.CalendarHistory AS CC
-            ON C.F_DATE = CC.F_DATE
+        LEFT JOIN
+            dbo.WeatherFuture AS W
+            ON CC.F_DATE = W.F_DATE
         """
 
         where_conditions = []
 
         # 增加全局起始日期限制
-        where_conditions.append(f"C.F_DATE >= {QUERY_START_DATE}")
+        where_conditions.append(f"CC.F_DATE >= {QUERY_START_DATE}")
 
         # 处理predict_start_date格式为'YYYYMMDD'或'YYYY-MM-DD'，但F_DATE为int型(yyyymmdd)
         def format_date_int(date_str):
@@ -733,30 +900,33 @@ def fetch_holiday_features(predict_start_date: str = None, days: int = None) -> 
                 start_dt = datetime.strptime(str(start_date_int), "%Y%m%d")
                 end_dt = start_dt + timedelta(days=days)
                 end_date_int = int(end_dt.strftime("%Y%m%d"))
-                where_conditions.append(f"C.F_DATE >= {start_date_int}")
-                where_conditions.append(f"C.F_DATE < {end_date_int}")
+                where_conditions.append(f"CC.F_DATE >= {start_date_int}")
+                where_conditions.append(f"CC.F_DATE < {end_date_int}")
             else:
-                where_conditions.append(f"C.F_DATE >= {start_date_int}")
+                where_conditions.append(f"CC.F_DATE >= {start_date_int}")
         elif days is not None:
             # 只给了天数，从今天开始
             from datetime import datetime, timedelta
             today = datetime.now()
             start_date_int = int(today.strftime("%Y%m%d"))
             end_date_int = int((today + timedelta(days=days)).strftime("%Y%m%d"))
-            where_conditions.append(f"C.F_DATE >= {start_date_int}")
-            where_conditions.append(f"C.F_DATE < {end_date_int}")
+            where_conditions.append(f"CC.F_DATE >= {start_date_int}")
+            where_conditions.append(f"CC.F_DATE < {end_date_int}")
 
         if where_conditions:
             query = base_query + " WHERE " + " AND ".join(where_conditions)
         else:
             query = base_query
 
-        query += " ORDER BY C.F_DATE"
+        query += " ORDER BY CC.F_DATE"
 
         try:
             df = pd.read_sql(query, conn)
             # print("节假日特征数据：")
             # print(df)
+            
+            # 应用编码修复，特别处理 NVARCHAR 字段的乱码问题
+            df = fix_dataframe_encoding(df)
         except Exception as e:
             # 处理数据库连接异常
             raise RuntimeError(f"数据库读取失败: {e}")
@@ -780,7 +950,8 @@ def read_line_daily_flow_history(metric_type: str) -> pd.DataFrame:
         日客流数据的 DataFrame
     """
     try:
-        conn = get_db_conn()
+        # 读取 NVARCHAR 字段时使用 utf8 字符集连接，确保正确读取中文
+        conn = get_db_conn(charset='utf8')
 
         metric_field_mapping = {
             "F_PKLCOUNT": "L.F_KLCOUNT",
@@ -807,13 +978,6 @@ def read_line_daily_flow_history(metric_type: str) -> pd.DataFrame:
             {selected_field} AS F_KLCOUNT,
             L.CREATETIME,
             L.CREATOR,
-            C.F_DATEFEATURES,
-            C.F_ISHOLIDAY,
-            C.F_ISNONGLI,
-            C.F_ISYANGLI,
-            C.F_NEXTDAY,
-            C.F_HOLIDAYTHDAY,
-            C.IS_FIRST,
             CC.F_YEAR,
             CC.F_DAYOFWEEK,
             CC.F_WEEK,
@@ -826,13 +990,10 @@ def read_line_daily_flow_history(metric_type: str) -> pd.DataFrame:
         FROM 
             dbo.LineDailyFlowHistory AS L
         LEFT JOIN 
-            dbo.LSTM_COMMON_HOLIDAYFEATURE AS C
-            ON L.F_DATE = C.F_DATE
-        LEFT JOIN 
             dbo.CalendarHistory AS CC
             ON L.F_DATE = CC.F_DATE
         LEFT JOIN
-            dbo.WeatherHistory AS W
+            dbo.WeatherFuture AS W
             ON L.F_DATE = W.F_DATE
         WHERE 
             L.CREATOR = 'chency' AND L.F_DATE >= {QUERY_START_DATE}
@@ -842,6 +1003,10 @@ def read_line_daily_flow_history(metric_type: str) -> pd.DataFrame:
 
         df = pd.read_sql(query, conn)
         conn.close()
+        
+        # 应用编码修复，特别处理 NVARCHAR 字段（如 F_LINENAME）的乱码问题
+        df = fix_dataframe_encoding(df)
+        
         return df
     except Exception as e:
         raise RuntimeError(f"数据库读取失败: {e}")
@@ -865,7 +1030,8 @@ def upload_xianwangxianlu_hourly_prediction_sample(prediction_rows: List[Dict], 
     if not prediction_rows:
         return
     try:
-        conn = get_db_conn()
+        # 写入时使用默认连接（不设置 charset），避免 NVARCHAR 字段写入乱码
+        conn = get_db_conn(charset=None)
         cursor = conn.cursor()
 
         for row in prediction_rows:
@@ -927,7 +1093,7 @@ def upload_xianwangxianlu_hourly_prediction_sample(prediction_rows: List[Dict], 
                     {insert_placeholder}
                 )
                 """
-                insert_params = [
+                insert_params = (
                     row.get('ID', str(uuid.uuid4())),
                     row.get('F_DATE'),
                     row.get('F_HOUR'),
@@ -941,7 +1107,7 @@ def upload_xianwangxianlu_hourly_prediction_sample(prediction_rows: List[Dict], 
                     row.get('REMARKS'),
                     row.get('PREDICT_DATE'),
                     row.get('PREDICT_WEATHER')
-                ]
+                )
                 cursor.execute(insert_sql, insert_params)
 
             
@@ -961,7 +1127,8 @@ def upload_xianwangxianlu_daily_prediction_sample(prediction_rows: List[Dict], m
     if not prediction_rows:
         return
     try:
-        conn = get_db_conn()
+        # 写入时使用默认连接（不设置 charset），避免 NVARCHAR 字段写入乱码
+        conn = get_db_conn(charset=None)
         cursor = conn.cursor()
         for row in prediction_rows:
             id_val = row.get('ID', str(uuid.uuid4()))
@@ -1122,7 +1289,8 @@ def upload_station_daily_prediction_sample(prediction_rows: List[Dict], metric_t
     if not prediction_rows:
         return
     try:
-        conn = get_db_conn()
+        # 写入时使用默认连接（不设置 charset），避免 NVARCHAR 字段写入乱码
+        conn = get_db_conn(charset=None)
         cursor = conn.cursor()
         for row in prediction_rows:
             # id_val = row.get('ID', str(uuid.uuid4()))
@@ -1200,19 +1368,19 @@ def upload_station_daily_prediction_sample(prediction_rows: List[Dict], metric_t
                 {metric_field}=%s
             WHERE LINE_ID=%s AND STATION_ID=%s AND SQUAD_DATE=%s
             """
-
+            
             lineids = get_lineids_by_station(row.get('F_LINENAME'))
             for lid in lineids:
                 id_val = str(uuid.uuid4())
                 update_params = (
-                    lid,
-                    row.get('F_LINENO'),
+                    lid.get('LINE_ID'),
+                    lid.get('STATION_ID'),
                     row.get('F_LINENAME'),
                     to_str(row.get('F_DATE')),
                     to_str(row.get('PREDICT_DATE')),
                     to_int(metric_value),
-                    lid,
-                    row.get('F_LINENO'),
+                    lid.get('LINE_ID'),
+                    lid.get('STATION_ID'),
                     to_str(row.get('F_DATE')),
                 )
 
@@ -1230,8 +1398,8 @@ def upload_station_daily_prediction_sample(prediction_rows: List[Dict], metric_t
                     """
                     insert_params = (
                         id_val,
-                        lid,
-                        row.get('F_LINENO'),
+                        lid.get('LINE_ID'),
+                        lid.get('STATION_ID'),
                         row.get('F_LINENAME'),
                         to_str(row.get('F_DATE')),
                         to_str(row.get('PREDICT_DATE')),
@@ -1312,7 +1480,8 @@ def upload_station_hourly_prediction_sample(prediction_rows: List[Dict], metric_
             return abs(hash(str(val))) % (10 ** 8)
 
     try:
-        conn = get_db_conn()
+        # 写入时使用默认连接（不设置 charset），避免 NVARCHAR 字段写入乱码
+        conn = get_db_conn(charset=None)
         cursor = conn.cursor()
         for row in prediction_rows:
             id_val = row.get('ID', str(uuid.uuid4()))
@@ -1327,7 +1496,7 @@ def upload_station_hourly_prediction_sample(prediction_rows: List[Dict], metric_
             # 默认字段
             metric_field = metric_field_map.get(metric_type, "PASSENGER_NUM")
             metric_value = to_float(row.get(metric_field, row.get('F_PKLCOUNT')))
-
+            
             lineids = get_lineids_by_station(row.get('F_LINENAME'))
             for lid in lineids:
                 id_val = str(uuid.uuid4())
@@ -1345,15 +1514,15 @@ def upload_station_hourly_prediction_sample(prediction_rows: List[Dict], metric_
                 WHERE LINE_ID=%s AND STATION_ID=%s AND SQUAD_DATE=%s AND TIME_SECTION_ID=%s
                 """
                 update_params = (
-                    lid,
-                    row.get('F_LINENO'),
+                    lid.get('LINE_ID'),
+                    lid.get('STATION_ID'),
                     row.get('F_LINENAME'),
                     to_str(row.get('F_DATE')),
                     to_str(row.get('PREDICT_DATE')),
                     to_str(row.get('F_HOUR')),
                     to_int(metric_value),
-                    lid,
-                    row.get('F_LINENO'),
+                    lid.get('LINE_ID'),
+                    lid.get('STATION_ID'),
                     to_str(row.get('F_DATE')),
                     to_str(f"{int(row.get('F_HOUR')):02d}") if row.get('F_HOUR') is not None else None,
                 )
@@ -1373,8 +1542,8 @@ def upload_station_hourly_prediction_sample(prediction_rows: List[Dict], metric_
                     """
                     insert_params = (
                         id_val,
-                        lid,
-                        row.get('F_LINENO'),
+                        lid.get('LINE_ID'),
+                        lid.get('STATION_ID'),
                         row.get('F_LINENAME'),
                         to_str(row.get('F_DATE')),
                         to_str(row.get('PREDICT_DATE')),

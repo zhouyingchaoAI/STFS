@@ -1,0 +1,40 @@
+{
+  "algorithm": "knn",
+  "mse": 0.0,
+  "mae": 0.0,
+  "train_datetime": "20251223",
+  "line_no": "83",
+  "version": "20251223",
+  "factors": [
+    "F_YEAR",
+    "F_HOLIDAYWHICHDAY",
+    "F_DAYOFWEEK",
+    "F_WEATHER",
+    "F_WEEK",
+    "F_HOLIDAYTYPE",
+    "F_HOLIDAYDAYS",
+    "WEATHER_TYPE",
+    "F_HOUR",
+    "F_RUSH_HOUR_TYPE"
+  ],
+  "config": {
+    "current_version": "20251223",
+    "default_algorithm": "lstm",
+    "model_root_dir": "models/hour",
+    "train_params": {
+      "lookback_hours": 72
+    }
+  },
+  "algorithm_weights": {
+    "knn": 0.2,
+    "last_year_offset": 0.8
+  },
+  "early_morning_config": {
+    "cutoff_hour": 6,
+    "pure_offset_weight": {
+      "knn": 0.0,
+      "last_year_offset": 1.0
+    }
+  },
+  "prediction_type": "hourly"
+}

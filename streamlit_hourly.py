@@ -73,7 +73,22 @@ def hourly_tab(SUBWAY_GREEN, SUBWAY_ACCENT, SUBWAY_CARD, SUBWAY_FONT, SUBWAY_BG,
         unsafe_allow_html=True
     )
 
+    # 真实算法名列表（用于内部逻辑）
     hourly_algos = ["knn", "lstm", "prophet", "xgboost"]
+    
+    # 算法名称映射：真实算法名 -> 显示名称
+    ALGO_DISPLAY_MAP = {
+        "knn": "智能混合算法",
+        "lstm": "深度学习算法",
+        "prophet": "机器学习算法",
+        "xgboost": "传统算法"
+    }
+    
+    # 反向映射：显示名称 -> 真实算法名
+    ALGO_REAL_MAP = {v: k for k, v in ALGO_DISPLAY_MAP.items()}
+    
+    # 显示名称列表（用于界面）
+    hourly_algo_display_names = [ALGO_DISPLAY_MAP[algo] for algo in hourly_algos]
 
     col_train, col_pred = st.columns([1, 1.1], gap="large")
 
@@ -90,7 +105,9 @@ def hourly_tab(SUBWAY_GREEN, SUBWAY_ACCENT, SUBWAY_CARD, SUBWAY_FONT, SUBWAY_BG,
             "</div>",
             unsafe_allow_html=True
         )
-        train_hourly_algo = st.selectbox("训练小时模型算法类型", options=hourly_algos, key="hourly_train_algo")
+        train_hourly_algo_display = st.selectbox("训练小时模型算法类型", options=hourly_algo_display_names, key="hourly_train_algo")
+        # 将显示名称转换为真实算法名
+        train_hourly_algo = ALGO_REAL_MAP.get(train_hourly_algo_display, train_hourly_algo_display)
         
         # 合并训练参数到下拉隐藏
         with st.expander("🔧 高级训练参数设置", expanded=False):
@@ -230,7 +247,11 @@ def hourly_tab(SUBWAY_GREEN, SUBWAY_ACCENT, SUBWAY_CARD, SUBWAY_FONT, SUBWAY_BG,
             available_hourly_algos = [a for a in available_hourly_algos if a in hourly_algos]
             
             if available_hourly_algos:
-                predict_hourly_algo = st.selectbox("推理模型类型", options=available_hourly_algos, key="hourly_predict_model_type")
+                # 将真实算法名映射为显示名称
+                available_hourly_algos_display = [ALGO_DISPLAY_MAP.get(a, a) for a in available_hourly_algos]
+                predict_hourly_algo_display = st.selectbox("推理模型类型", options=available_hourly_algos_display, key="hourly_predict_model_type")
+                # 将显示名称转换回真实算法名
+                predict_hourly_algo = ALGO_REAL_MAP.get(predict_hourly_algo_display, predict_hourly_algo_display)
                 model_dir_hourly = os.path.join(hourly_model_root, hourly_version, predict_hourly_algo)
             else:
                 model_dir_hourly = None

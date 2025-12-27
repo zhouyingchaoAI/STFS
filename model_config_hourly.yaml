@@ -1,0 +1,5 @@
+current_version: null
+default_algorithm: lstm
+model_root_dir: models/hour
+train_params:
+  lookback_hours: 72

@@ -68,7 +68,24 @@ def daily_tab(SUBWAY_GREEN, SUBWAY_ACCENT, SUBWAY_CARD, SUBWAY_FONT, SUBWAY_BG, 
         f"<h2 style='color:{SUBWAY_ACCENT};font-weight:800;'>📅 {FLOW_OPTIONS[flow_type]} - {FLOW_OPTIONS[metric_type]} 日客流预测（KNN/Prophet/Transformer/xgboost）</h2>",
         unsafe_allow_html=True
     )
+    # 真实算法名列表（用于内部逻辑）
     daily_algos = ["knn", "prophet", "transformer", "xgboost", "lstm", "lightgbm"]
+    
+    # 算法名称映射：真实算法名 -> 显示名称
+    ALGO_DISPLAY_MAP = {
+        "knn": "智能混合算法",
+        "prophet": "智能搜索算法",
+        "transformer": "深度学习算法",
+        "xgboost": "传统算法",
+        "lstm": "长短时记忆法",
+        "lightgbm": "机器学习算法"
+    }
+    
+    # 反向映射：显示名称 -> 真实算法名
+    ALGO_REAL_MAP = {v: k for k, v in ALGO_DISPLAY_MAP.items()}
+    
+    # 显示名称列表（用于界面）
+    daily_algo_display_names = [ALGO_DISPLAY_MAP[algo] for algo in daily_algos]
 
     col_train, col_pred = st.columns([1, 1.1], gap="large")
 
@@ -85,7 +102,9 @@ def daily_tab(SUBWAY_GREEN, SUBWAY_ACCENT, SUBWAY_CARD, SUBWAY_FONT, SUBWAY_BG, 
             "</div>",
             unsafe_allow_html=True
         )
-        train_daily_algo = st.selectbox("训练日模型算法类型", options=daily_algos, key="daily_train_algo")
+        train_daily_algo_display = st.selectbox("训练日模型算法类型", options=daily_algo_display_names, key="daily_train_algo")
+        # 将显示名称转换为真实算法名
+        train_daily_algo = ALGO_REAL_MAP.get(train_daily_algo_display, train_daily_algo_display)
         # 合并训练参数到下拉隐藏
         with st.expander("🔧 高级训练参数设置", expanded=False):
             train_params = config_daily.get("train_params", {})
@@ -199,7 +218,11 @@ def daily_tab(SUBWAY_GREEN, SUBWAY_ACCENT, SUBWAY_CARD, SUBWAY_FONT, SUBWAY_BG, 
             available_daily_algos = [d for d in os.listdir(algo_dir_daily) if os.path.isdir(os.path.join(algo_dir_daily, d))]
             available_daily_algos = [a for a in available_daily_algos if a in daily_algos]
             if available_daily_algos:
-                predict_daily_algo = st.selectbox("推理模型类型", options=available_daily_algos, key="daily_predict_model_type")
+                # 将真实算法名映射为显示名称
+                available_daily_algos_display = [ALGO_DISPLAY_MAP.get(a, a) for a in available_daily_algos]
+                predict_daily_algo_display = st.selectbox("推理模型类型", options=available_daily_algos_display, key="daily_predict_model_type")
+                # 将显示名称转换回真实算法名
+                predict_daily_algo = ALGO_REAL_MAP.get(predict_daily_algo_display, predict_daily_algo_display)
                 model_dir_daily = os.path.join(daily_model_root, daily_version, predict_daily_algo)
             else:
                 model_dir_daily = None
