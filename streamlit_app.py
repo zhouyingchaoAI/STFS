@@ -1,4 +1,3 @@
-
 # streamlit_app.py
 # 主框架：负责页面布局、主题、tab切换，调用小时/天预测子模块
 
@@ -6,525 +5,345 @@ import streamlit as st
 from datetime import datetime
 from config_utils import load_yaml_config, save_yaml_config
 import os
-
 import warnings
+
 warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib.font_manager")
 
-# --------- 仅深色主题色与样式设置 ---------
-DARK_THEME = {
-    "SUBWAY_PRIMARY": "#00e09e",
-    "SUBWAY_SECONDARY": "#00bfff",
-    "SUBWAY_ACCENT": "#7c4dff",
-    "SUBWAY_PINK": "#ff4081",
-    "SUBWAY_ORANGE": "#ff9800",
-    "SUBWAY_YELLOW": "#ffc107",
-    "SUBWAY_BG": "#0a0d1a",
-    "SUBWAY_CARD": "#1a1f2e",
-    "SUBWAY_SURFACE": "#242938",
-    "SUBWAY_FONT": "#ffffff",
-    "SUBWAY_FONT_SECONDARY": "#b8c5d6",
-    "SUBWAY_DARK": "#121620",
-    "SUBWAY_SUCCESS": "#4caf50",
-    "SUBWAY_WARNING": "#ff9800",
-    "SUBWAY_ERROR": "#f44336",
+# 导入UI组件库
+from ui_components import (
+    CYBER_THEME,
+    inject_global_styles,
+    render_hero_banner,
+    render_section_header,
+    render_footer,
+)
+
+# ==================== 配置选项 ====================
+
+FLOW_TYPES = {
+    "xianwangxianlu": "线路线网",
+    "duanmian": "断面",
+    "chezhan": "车站"
 }
 
-def subway_optimized_style(theme):
-    st.markdown(
-        f"""
-        <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
-        
-        :root {{
-            --primary: {theme['SUBWAY_PRIMARY']};
-            --secondary: {theme['SUBWAY_SECONDARY']};
-            --accent: {theme['SUBWAY_ACCENT']};
-            --pink: {theme['SUBWAY_PINK']};
-            --orange: {theme['SUBWAY_ORANGE']};
-            --yellow: {theme['SUBWAY_YELLOW']};
-            --bg: {theme['SUBWAY_BG']};
-            --card: {theme['SUBWAY_CARD']};
-            --surface: {theme['SUBWAY_SURFACE']};
-            --font: {theme['SUBWAY_FONT']};
-            --font-secondary: {theme['SUBWAY_FONT_SECONDARY']};
-            --dark: {theme['SUBWAY_DARK']};
-            --success: {theme['SUBWAY_SUCCESS']};
-            --warning: {theme['SUBWAY_WARNING']};
-            --error: {theme['SUBWAY_ERROR']};
-        }}
-        
-        * {{
-            box-sizing: border-box;
-        }}
-        
-        body, .stApp {{
-            background: linear-gradient(135deg, var(--bg) 0%, var(--dark) 100%);
-            color: var(--font);
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            min-height: 100vh;
-        }}
-        
-        .stApp {{
-            background-attachment: fixed;
-        }}
-        
-        .block-container {{
-            padding: 2rem 1.5rem 3rem 1.5rem;
-            max-width: 1200px;
-            margin: 0 auto;
-        }}
-        
-        .subway-hero-banner {{
-            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 35%, var(--accent) 70%, var(--pink) 100%);
-            padding: 3rem 2.5rem 2.5rem 2.5rem;
-            border-radius: 20px;
-            margin-bottom: 2.5rem;
-            position: relative;
-            overflow: hidden;
-            box-shadow: 
-                0 20px 40px rgba(0, 224, 158, 0.15),
-                0 10px 20px rgba(0, 191, 255, 0.1),
-                inset 0 1px 0 rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }}
-        
-        .subway-hero-banner::before {{
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: 
-                radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
-                radial-gradient(circle at 80% 80%, rgba(124, 77, 255, 0.1) 0%, transparent 50%);
-            pointer-events: none;
-        }}
-        
-        .subway-hero-banner h1 {{
-            color: var(--dark);
-            font-weight: 900;
-            font-size: clamp(2.2rem, 4vw, 3.2rem);
-            letter-spacing: -0.02em;
-            margin-bottom: 0.8rem;
-            position: relative;
-            z-index: 1;
-            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            line-height: 1.1;
-        }}
-        
-        .subway-hero-banner .hero-subtitle {{
-            color: var(--dark);
-            font-size: clamp(1rem, 2vw, 1.25rem);
-            font-weight: 500;
-            line-height: 1.6;
-            opacity: 0.9;
-            position: relative;
-            z-index: 1;
-        }}
-        
-        .subway-hero-banner .hero-features {{
-            display: flex;
-            flex-wrap: wrap;
-            gap: 1rem;
-            margin-top: 1.5rem;
-            position: relative;
-            z-index: 1;
-        }}
-        
-        .hero-feature-tag {{
-            background: rgba(18, 22, 32, 0.8);
-            color: var(--primary);
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            border: 1px solid rgba(0, 224, 158, 0.3);
-            backdrop-filter: blur(10px);
-        }}
-        
-        div[data-testid="stRadio"] {{
-            background: var(--card);
-            padding: 1.5rem;
-            border-radius: 16px;
-            margin-bottom: 2rem;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-        }}
-        
-        div[data-testid="stRadio"] > label {{
-            font-size: 1.1rem;
-            font-weight: 700;
-            color: var(--primary);
-            margin-bottom: 1rem;
-            display: block;
-        }}
-        
-        div[data-testid="stRadio"] > div {{
-            display: flex;
-            gap: 1rem;
-            flex-wrap: wrap;
-        }}
-        
-        div[data-testid="stRadio"] label[data-baseweb="radio"] {{
-            background: var(--surface);
-            padding: 1rem 1.5rem;
-            border-radius: 12px;
-            border: 2px solid transparent;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            flex: 1;
-            min-width: 200px;
-            text-align: center;
-            font-weight: 700;
-            color: var(--font);
-            font-size: 1.08rem;
-            letter-spacing: 0.01em;
-        }}
-        
-        div[data-testid="stRadio"] label[data-baseweb="radio"]:hover {{
-            border-color: var(--primary);
-            background: linear-gradient(135deg, var(--primary)10, var(--secondary)10);
-            color: var(--font);
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(0, 224, 158, 0.15);
-        }}
-        
-        div[data-testid="stRadio"] input:checked + label {{
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            color: var(--dark);
-            border-color: var(--primary);
-            box-shadow: 0 4px 20px rgba(0, 224, 158, 0.3);
-            font-weight: 900;
-        }}
+FLOW_METRIC_OPTIONS = [
+    ("F_PKLCOUNT", "客运量"),
+    ("F_ENTRANCE", "进站量"),
+    ("F_EXIT", "出站量"),
+    ("F_TRANSFER", "换乘量"),
+    ("F_BOARD_ALIGHT", "乘降量")
+]
 
-        /* 加粗"线路小时客流预测"tab字体 */
-        div[data-testid="stRadio"] > div > label[data-baseweb="radio"]:nth-child(1) {{
-            font-size: 1.15rem !important;
-            font-weight: 800 !important;
-            color: var(--primary) !important;
-        }}
-        
-        .stContainer > div, 
-        div[data-testid="column"] > div,
-        .element-container {{
-            background: var(--card);
-            border-radius: 16px;
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-            backdrop-filter: blur(10px);
-        }}
-        
-        .stButton > button {{
-            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
-            color: var(--dark);
-            font-weight: 700;
-            border: none;
-            border-radius: 12px;
-            padding: 0.75rem 2rem;
-            font-size: 1rem;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(0, 224, 158, 0.3);
-            position: relative;
-            overflow: hidden;
-        }}
-        
-        .stButton > button:hover {{
-            background: linear-gradient(135deg, var(--secondary) 0%, var(--accent) 100%);
-            color: var(--font);
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(0, 191, 255, 0.4);
-        }}
-        
-        .stButton > button:active {{
-            transform: translateY(0);
-        }}
-        
-        .stTextInput > div > div > input,
-        .stNumberInput > div > div > input,
-        .stSelectbox > div > div > input {{
-            background: var(--surface);
-            color: var(--font);
-            border: 2px solid rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            padding: 0.75rem 1rem;
-            font-size: 1rem;
-            font-weight: 500;
-            transition: all 0.3s ease;
-        }}
-        
-        .stTextInput > div > div > input:focus,
-        .stNumberInput > div > div > input:focus,
-        .stSelectbox > div > div > input:focus {{
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(0, 224, 158, 0.1);
-        }}
-        
-        .stDataFrame {{
-            background: var(--card) !important;
-            border-radius: 12px !important;
-            overflow: hidden;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1) !important;
-        }}
-        
-        .stDataFrame table {{
-            background: transparent !important;
-        }}
-        
-        .stDataFrame th {{
-            background: linear-gradient(135deg, var(--primary)20, var(--secondary)20) !important;
-            color: var(--font) !important;
-            font-weight: 700 !important;
-            border: none !important;
-            padding: 1rem !important;
-        }}
-        
-        .stDataFrame td {{
-            color: var(--font-secondary) !important;
-            border: none !important;
-            padding: 0.75rem 1rem !important;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
-        }}
-        
-        .stPlotlyChart, .stAltairChart, .stPyplotChart {{
-            background: var(--card) !important;
-            border-radius: 16px !important;
-            padding: 1rem !important;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1) !important;
-            border: 1px solid rgba(255, 255, 255, 0.05) !important;
-        }}
-        
-        section[data-testid="stSidebar"] {{
-            background: linear-gradient(180deg, var(--card) 0%, var(--surface) 100%);
-            border-right: 1px solid rgba(255, 255, 255, 0.1);
-        }}
-        
-        .stMarkdown h1, .stMarkdown h2, .stMarkdown h3, .stMarkdown h4 {{
-            color: var(--font);
-            font-weight: 800;
-            letter-spacing: -0.02em;
-            margin-bottom: 1rem;
-            line-height: 1.2;
-        }}
-        
-        .stMarkdown h2 {{
-            color: var(--primary);
-            font-size: 1.8rem;
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }}
-        
-        .stMarkdown h3 {{
-            color: var(--secondary);
-            font-size: 1.4rem;
-        }}
-        
-        .stSuccess {{
-            background: linear-gradient(135deg, var(--success)15, var(--success)05);
-            border: 1px solid var(--success);
-            border-radius: 12px;
-            color: var(--font);
-        }}
-        
-        .stWarning {{
-            background: linear-gradient(135deg, var(--warning)15, var(--warning)05);
-            border: 1px solid var(--warning);
-            border-radius: 12px;
-            color: var(--font);
-        }}
-        
-        .stError {{
-            background: linear-gradient(135deg, var(--error)15, var(--error)05);
-            border: 1px solid var(--error);
-            border-radius: 12px;
-            color: var(--font);
-        }}
-        
-        ::-webkit-scrollbar {{
-            width: 8px;
-            height: 8px;
-        }}
-        
-        ::-webkit-scrollbar-track {{
-            background: var(--surface);
-            border-radius: 4px;
-        }}
-        
-        ::-webkit-scrollbar-thumb {{
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            border-radius: 4px;
-        }}
-        
-        ::-webkit-scrollbar-thumb:hover {{
-            background: linear-gradient(135deg, var(--secondary), var(--accent));
-        }}
-        
-        @keyframes pulse {{
-            0%, 100% {{ opacity: 1; }}
-            50% {{ opacity: 0.5; }}
-        }}
-        
-        .loading {{
-            animation: pulse 2s infinite;
-        }}
-        
-        @media (max-width: 768px) {{
-            .block-container {{
-                padding: 1rem;
-            }}
-            
-            .subway-hero-banner {{
-                padding: 2rem 1.5rem;
-                margin-bottom: 2rem;
-            }}
-            
-            .subway-hero-banner h1 {{
-                font-size: 2rem;
-            }}
-            
-            .hero-features {{
-                flex-direction: column;
-            }}
-            
-            div[data-testid="stRadio"] > div {{
-                flex-direction: column;
-            }}
-            
-            div[data-testid="stRadio"] label[data-baseweb="radio"] {{
-                min-width: unset;
-            }}
-        }}
-        
-        * {{
-            -webkit-transform: translateZ(0);
-            transform: translateZ(0);
-        }}
-        
-        .stApp {{
-            will-change: transform;
-            backface-visibility: hidden;
-        }}
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+# ==================== 自定义选择器样式 ====================
+
+def render_mode_selector():
+    """渲染预测模式选择器"""
+    st.markdown("""
+    <style>
+    .mode-selector-container {
+        display: flex;
+        gap: 1rem;
+        margin: 1.5rem 0;
+    }
+    
+    .mode-card {
+        flex: 1;
+        background: linear-gradient(135deg, rgba(15, 20, 35, 0.9), rgba(30, 36, 57, 0.7));
+        border: 2px solid rgba(0, 255, 213, 0.2);
+        border-radius: 16px;
+        padding: 1.5rem;
+        cursor: pointer;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .mode-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #00ffd5, #bf00ff);
+        transform: scaleX(0);
+        transition: transform 0.3s ease;
+    }
+    
+    .mode-card:hover {
+        border-color: rgba(0, 255, 213, 0.6);
+        transform: translateY(-4px);
+        box-shadow: 0 12px 40px rgba(0, 255, 213, 0.15);
+    }
+    
+    .mode-card:hover::before {
+        transform: scaleX(1);
+    }
+    
+    .mode-card.active {
+        border-color: #00ffd5;
+        background: linear-gradient(135deg, rgba(0, 255, 213, 0.1), rgba(191, 0, 255, 0.05));
+        box-shadow: 0 8px 32px rgba(0, 255, 213, 0.2);
+    }
+    
+    .mode-card.active::before {
+        transform: scaleX(1);
+    }
+    
+    .mode-icon {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+        filter: drop-shadow(0 0 15px rgba(0, 255, 213, 0.5));
+    }
+    
+    .mode-title {
+        font-family: 'Rajdhani', sans-serif;
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: #00ffd5;
+        margin-bottom: 0.5rem;
+    }
+    
+    .mode-desc {
+        font-size: 0.9rem;
+        color: #a8b2d1;
+        line-height: 1.5;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+
+def render_config_panel(flow_type_key: str, selected_flow_metric_key: str):
+    """渲染配置面板"""
+    st.markdown("""
+    <style>
+    .config-panel {
+        background: linear-gradient(135deg, rgba(15, 20, 35, 0.95), rgba(30, 36, 57, 0.8));
+        border: 1px solid rgba(0, 255, 213, 0.2);
+        border-radius: 16px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .config-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid rgba(0, 255, 213, 0.15);
+    }
+    
+    .config-title {
+        font-family: 'Rajdhani', sans-serif;
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #00ffd5;
+        margin: 0;
+    }
+    
+    .config-badge {
+        background: rgba(191, 0, 255, 0.2);
+        border: 1px solid rgba(191, 0, 255, 0.4);
+        color: #bf00ff;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    </style>
+    
+    <div class="config-panel">
+        <div class="config-header">
+            <span style="font-size: 1.3rem;">⚙️</span>
+            <h4 class="config-title">当前配置</h4>
+            <span class="config-badge">实时更新</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
 
 def main():
     """
     Streamlit 应用主入口，提供小时和日客流预测界面
     """
     st.set_page_config(
-        page_title="客流模型算法测试平台", 
-        layout="wide", 
+        page_title="客流模型算法测试平台",
+        layout="wide",
         page_icon="🚇",
         initial_sidebar_state="collapsed"
     )
 
-    # 只保留深色主题
-    theme = DARK_THEME
-
-    # 应用优化样式
-    subway_optimized_style(theme)
+    # 注入全局样式
+    inject_global_styles()
+    render_mode_selector()
 
     # Hero横幅
-    st.markdown(
-        f"""
-        <div class="subway-hero-banner">
-            <h1>🚇 客流模型算法测试平台</h1>
-            <div class="hero-subtitle">
-                基于机器学习与深度学习技术的智能客流预测系统，支持多算法对比分析，实现精准预测与可视化展示
-            </div>
-            <div class="hero-features">
-                <div class="hero-feature-tag">📊 多算法支持</div>
-                <div class="hero-feature-tag">🎯 高精度预测</div>
-                <div class="hero-feature-tag">📈 实时可视化</div>
-                <div class="hero-feature-tag">⚡ 智能分析</div>
-                <div class="hero-feature-tag">🔧 参数调优</div>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    render_hero_banner(
+        title="客流模型算法测试平台",
+        subtitle="基于机器学习与深度学习技术的智能客流预测系统，支持多算法对比分析，实现精准预测与可视化展示",
+        features=[
+            "🔮 多算法融合",
+            "🎯 高精度预测",
+            "📊 实时可视化",
+            "⚡ 智能分析",
+            "🔧 参数调优",
+            "📈 趋势预警"
+        ],
+        icon="🚇"
     )
 
-    # 将两个下拉框放在同一行
-    col1, col2 = st.columns([1, 1], gap="medium")
+    # 配置选择区域
+    st.markdown("""
+    <div style="
+        background: linear-gradient(135deg, rgba(15, 20, 35, 0.9), rgba(30, 36, 57, 0.7));
+        border: 1px solid rgba(0, 255, 213, 0.2);
+        border-radius: 16px;
+        padding: 1.5rem 2rem;
+        margin-bottom: 2rem;
+    ">
+        <div style="
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.25rem;
+        ">
+            <span style="font-size: 1.3rem;">⚙️</span>
+            <span style="
+                font-family: 'Rajdhani', sans-serif;
+                font-size: 1.1rem;
+                font-weight: 700;
+                color: #00ffd5;
+            ">预测配置</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 配置选项行
+    col1, col2, col3 = st.columns([1, 1, 1.2], gap="medium")
 
     with col1:
-        # 定义 FLOW_TYPES 下拉选项
-        FLOW_TYPES = {
-            "xianwangxianlu": "线路线网",
-            "duanmian": "断面",
-            "chezhan": "车站"
-        }
-        # 选择客流类型
         flow_type_label = st.selectbox(
-            "🚇 选择客流类型",
+            "🚇 客流类型",
             options=list(FLOW_TYPES.values()),
             index=0,
-            key="main_flow_type_select"
+            key="main_flow_type_select",
+            help="选择要分析的客流数据类型"
         )
-        # 反查 key
         flow_type_key = [k for k, v in FLOW_TYPES.items() if v == flow_type_label][0]
 
     with col2:
-        # 预测客流类型下拉框
-        FLOW_METRIC_OPTIONS = [
-            ("F_PKLCOUNT", "客运量"),
-            ("F_ENTRANCE", "进站量"),
-            ("F_EXIT", "出站量"),
-            ("F_TRANSFER", "换乘量"),
-            ("F_BOARD_ALIGHT", "乘降量")
-        ]
         flow_metric_labels = [label for _, label in FLOW_METRIC_OPTIONS]
         selected_flow_metric_label = st.selectbox(
-            "🚦 选择预测客流范围",
+            "📊 预测指标",
             options=flow_metric_labels,
             index=0,
             key="main_flow_metric_select",
-            help="选择要预测的客流量类型"
+            help="选择要预测的客流量指标"
         )
         selected_flow_metric_key = [k for k, v in FLOW_METRIC_OPTIONS if v == selected_flow_metric_label][0]
 
+    with col3:
+        tab_options = [
+            f"📅 {flow_type_label} - 日预测",
+            f"🕐 {flow_type_label} - 小时预测",
+            f"🎯 节假日预测 (人工算法)"
+        ]
+        tab_choice = st.selectbox(
+            "⏱️ 预测模式",
+            options=tab_options,
+            key="prediction_mode_select",
+            help="选择日级别、小时级别或节假日预测"
+        )
 
-    tab_options = [
-        f"📅 {flow_type_label}日客流预测",
-        f"🕒 {flow_type_label}小时客流预测"
-    ]
-    # 直接使用 selectbox，无需切换按钮或表单
-    tab_choice = st.selectbox(
-        "选择预测模式",
-        options=tab_options,
-        label_visibility="collapsed"
-    )
+    # 显示当前配置状态
+    if "节假日" in tab_choice:
+        mode_text = "节假日预测"
+    elif "日预测" in tab_choice:
+        mode_text = "日预测"
+    else:
+        mode_text = "小时预测"
+    st.markdown(f"""
+    <div style="
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin: 1rem 0;
+    ">
+        <div style="
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(0, 255, 213, 0.1);
+            border: 1px solid rgba(0, 255, 213, 0.4);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+        ">
+            <span style="color: #00ffd5;">🚇</span>
+            <span style="color: #ffffff; font-weight: 600;">类型: {flow_type_label}</span>
+        </div>
+        <div style="
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(191, 0, 255, 0.1);
+            border: 1px solid rgba(191, 0, 255, 0.4);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+        ">
+            <span style="color: #bf00ff;">📊</span>
+            <span style="color: #ffffff; font-weight: 600;">指标: {selected_flow_metric_label}</span>
+        </div>
+        <div style="
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid rgba(0, 255, 136, 0.4);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+        ">
+            <span style="color: #00ff88;">✓</span>
+            <span style="color: #ffffff; font-weight: 600;">模式: {mode_text}</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    # st.divider()
+    st.markdown("<div style='height: 1.5rem;'></div>", unsafe_allow_html=True)
 
-    # 根据选择加载对应模块，并增强字体颜色对比度
-    BRIGHT_FONT_COLOR = "#FFFFFF"  # 纯白色，确保字体鲜明
-
-    # 防止 tab_choice 为 None 时出现 AttributeError
+    # 根据选择加载对应模块
     if tab_choice is not None:
-        if isinstance(tab_choice, str) and tab_choice.startswith("🕒"):
-            from streamlit_hourly import hourly_tab
-            hourly_tab(
-                SUBWAY_GREEN=theme["SUBWAY_PRIMARY"],
-                SUBWAY_ACCENT=theme["SUBWAY_SECONDARY"],
-                SUBWAY_CARD=theme["SUBWAY_CARD"],
-                SUBWAY_FONT=BRIGHT_FONT_COLOR,  # 使用更鲜明的字体颜色
-                SUBWAY_BG=theme["SUBWAY_BG"],
+        if isinstance(tab_choice, str) and "节假日" in tab_choice:
+            # 节假日预测模块 - 基于人工算法
+            from streamlit_holiday import holiday_tab
+            holiday_tab(
+                SUBWAY_GREEN=CYBER_THEME["PRIMARY"],
+                SUBWAY_ACCENT=CYBER_THEME["ACCENT"],
+                SUBWAY_CARD=CYBER_THEME["BG_SURFACE"],
+                SUBWAY_FONT=CYBER_THEME["TEXT_PRIMARY"],
+                SUBWAY_BG=CYBER_THEME["BG_BASE"],
                 flow_type=flow_type_key,
                 metric_type=selected_flow_metric_key
             )
-        elif isinstance(tab_choice, str) and tab_choice.startswith("📅"):
+        elif isinstance(tab_choice, str) and "小时预测" in tab_choice:
+            from streamlit_hourly import hourly_tab
+            hourly_tab(
+                SUBWAY_GREEN=CYBER_THEME["PRIMARY"],
+                SUBWAY_ACCENT=CYBER_THEME["ACCENT"],
+                SUBWAY_CARD=CYBER_THEME["BG_SURFACE"],
+                SUBWAY_FONT=CYBER_THEME["TEXT_PRIMARY"],
+                SUBWAY_BG=CYBER_THEME["BG_BASE"],
+                flow_type=flow_type_key,
+                metric_type=selected_flow_metric_key
+            )
+        elif isinstance(tab_choice, str) and "日预测" in tab_choice:
             from streamlit_daily import daily_tab
             daily_tab(
-                SUBWAY_GREEN=theme["SUBWAY_PRIMARY"],
-                SUBWAY_ACCENT=theme["SUBWAY_SECONDARY"],
-                SUBWAY_CARD=theme["SUBWAY_CARD"],
-                SUBWAY_FONT=BRIGHT_FONT_COLOR,  # 使用更鲜明的字体颜色
-                SUBWAY_BG=theme["SUBWAY_BG"],
+                SUBWAY_GREEN=CYBER_THEME["PRIMARY"],
+                SUBWAY_ACCENT=CYBER_THEME["ACCENT"],
+                SUBWAY_CARD=CYBER_THEME["BG_SURFACE"],
+                SUBWAY_FONT=CYBER_THEME["TEXT_PRIMARY"],
+                SUBWAY_BG=CYBER_THEME["BG_BASE"],
                 flow_type=flow_type_key,
                 metric_type=selected_flow_metric_key
             )
@@ -532,15 +351,8 @@ def main():
         st.warning("未检测到有效的预测模式选项，请重新选择。")
 
     # 页脚
-    st.markdown("---")
-    st.markdown(
-        """
-        <div style="text-align: center; color: var(--font-secondary); font-size: 0.9rem; padding: 2rem 0;">
-            <p>🚇 客流模型算法测试平台 | 科技赋能智慧交通 | Powered by Machine Learning</p>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    render_footer()
+
 
 if __name__ == "__main__":
     main()

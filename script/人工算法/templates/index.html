@@ -518,6 +518,31 @@
             font-size: 15px;
         }
 
+        .export-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);
+        }
+        
+        .export-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(102, 126, 234, 0.4);
+        }
+        
+        .export-btn:active {
+            transform: translateY(0);
+        }
+        
         .results-header {
             display: flex;
             justify-content: space-between;
@@ -969,7 +994,13 @@
         <div class="results-panel" id="predictResultsPanel" style="display: none;">
             <div class="results-header">
                 <h2>预测结果</h2>
-                <span class="record-count" id="predictRecordCount">0 条记录</span>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <span class="record-count" id="predictRecordCount">0 条记录</span>
+                    <button id="exportPredictCSVBtn" class="export-btn" onclick="exportPredictResultsToCSV()" style="display: none;">
+                        <span>📥</span>
+                        <span>导出CSV</span>
+                    </button>
+                </div>
             </div>
             
             <!-- 预测准确率统计 -->
@@ -1085,7 +1116,13 @@
         <div class="results-panel" id="stationPredictResultsPanel" style="display: none;">
             <div class="results-header">
                 <h2>车站预测结果</h2>
-                <span class="record-count" id="stationPredictRecordCount">0 条记录</span>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <span class="record-count" id="stationPredictRecordCount">0 条记录</span>
+                    <button id="exportStationPredictCSVBtn" class="export-btn" onclick="exportStationPredictResultsToCSV()" style="display: none;">
+                        <span>📥</span>
+                        <span>导出CSV</span>
+                    </button>
+                </div>
             </div>
             
             <!-- 预测准确率统计 -->
@@ -2883,8 +2920,17 @@
                 const historyYear = predictYear - i;
                 
                 // 参考期（同期日期）
-                const refStart = predictStart.replace(/^\d{4}/, historyYear);
-                const refEnd = predictEnd.replace(/^\d{4}/, historyYear);
+                let refStart = predictStart.replace(/^\d{4}/, historyYear);
+                let refEnd = predictEnd.replace(/^\d{4}/, historyYear);
+                
+                // 检测跨年：如果开始日期大于结束日期，说明跨年了，需要将结束日期年份加1
+                const refStartDate = new Date(refStart);
+                const refEndDate = new Date(refEnd);
+                if (refStartDate > refEndDate) {
+                    // 跨年情况：结束日期年份加1
+                    refEndDate.setFullYear(refEndDate.getFullYear() + 1);
+                    refEnd = formatDateLocal(refEndDate);
+                }
                 
                 // 基期（该年的上月）
                 let baseMonth = predictMonth - 1;
@@ -3068,10 +3114,17 @@
             }
         }
         
+        // 存储预测结果数据用于导出
+        let currentPredictData = null;
+        let currentStationPredictData = null;
+        
         function displayPredictResults(data) {
             console.log('显示预测结果:', data);
             console.log('has_actual =', data.has_actual);
             console.log('predictions 总数 =', data.predictions.length);
+            
+            // 保存数据用于导出
+            currentPredictData = data;
             
             // 统计有准确率的记录
             const withAccuracy = data.predictions.filter(p => p['准确率'] !== null && p['准确率'] !== undefined);
@@ -3082,6 +3135,7 @@
             
             const resultsPanel = document.getElementById('predictResultsPanel');
             const recordCount = document.getElementById('predictRecordCount');
+            const exportBtn = document.getElementById('exportPredictCSVBtn');
             const accuracyPanel = document.getElementById('predictAccuracyPanel');
             const accuracyGrid = document.getElementById('predictAccuracyGrid');
             const dataContainer = document.getElementById('predictDataContainer');
@@ -3090,8 +3144,11 @@
             dataContainer.innerHTML = '';
             accuracyGrid.innerHTML = '';
             
-            // 显示记录数
+            // 显示记录数和导出按钮
             recordCount.textContent = `${data.predictions.length} 条预测`;
+            if (exportBtn) {
+                exportBtn.style.display = 'inline-flex';
+            }
             
             // 添加说明信息
             const infoDiv = document.createElement('div');
@@ -3471,8 +3528,17 @@
             
             for (let i = 1; i <= historyYears; i++) {
                 const historyYear = predictYear - i;
-                const refStart = predictStart.replace(/^\d{4}/, historyYear);
-                const refEnd = predictEnd.replace(/^\d{4}/, historyYear);
+                let refStart = predictStart.replace(/^\d{4}/, historyYear);
+                let refEnd = predictEnd.replace(/^\d{4}/, historyYear);
+                
+                // 检测跨年：如果开始日期大于结束日期，说明跨年了，需要将结束日期年份加1
+                const refStartDate = new Date(refStart);
+                const refEndDate = new Date(refEnd);
+                if (refStartDate > refEndDate) {
+                    // 跨年情况：结束日期年份加1
+                    refEndDate.setFullYear(refEndDate.getFullYear() + 1);
+                    refEnd = formatDateLocal(refEndDate);
+                }
                 
                 let baseMonth = predictMonth - 1;
                 let baseYear = historyYear;
@@ -3652,11 +3718,145 @@
             }, 5000);
         }
         
+        // CSV导出函数
+        function convertToCSV(data, headers) {
+            // 添加BOM以支持Excel正确显示中文
+            let csv = '\uFEFF';
+            
+            // 添加表头
+            csv += headers.join(',') + '\n';
+            
+            // 添加数据行
+            data.forEach(row => {
+                const values = headers.map(header => {
+                    let value = row[header] !== null && row[header] !== undefined ? row[header] : '';
+                    // 如果值包含逗号、引号或换行符，需要用引号包裹并转义引号
+                    if (typeof value === 'string' && (value.includes(',') || value.includes('"') || value.includes('\n'))) {
+                        value = '"' + value.replace(/"/g, '""') + '"';
+                    }
+                    return value;
+                });
+                csv += values.join(',') + '\n';
+            });
+            
+            return csv;
+        }
+        
+        function downloadCSV(csv, filename) {
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+        
+        function exportPredictResultsToCSV() {
+            if (!currentPredictData || !currentPredictData.predictions || currentPredictData.predictions.length === 0) {
+                alert('没有可导出的数据');
+                return;
+            }
+            
+            // 定义CSV列头（根据数据字段）
+            const headers = ['线路编号', '线路名称', '预测日期', '第几天', '基期日均', '最优增长率', '最优来源年份', '预测客流'];
+            
+            // 如果有实际数据，添加实际相关列
+            if (currentPredictData.has_actual) {
+                headers.push('实际客流', '准确率', '误差');
+            }
+            
+            // 准备数据
+            const csvData = currentPredictData.predictions.map(pred => {
+                const row = {
+                    '线路编号': pred['线路编号'],
+                    '线路名称': pred['线路名称'],
+                    '预测日期': pred['预测日期'],
+                    '第几天': pred['第几天'],
+                    '基期日均': pred['基期日均'],
+                    '最优增长率': pred['最优增长率'] + '%',
+                    '最优来源年份': pred['最优来源年份'],
+                    '预测客流': pred['预测客流']
+                };
+                
+                if (currentPredictData.has_actual) {
+                    row['实际客流'] = pred['实际客流'] !== null && pred['实际客流'] !== undefined ? pred['实际客流'] : '';
+                    row['准确率'] = pred['准确率'] !== null && pred['准确率'] !== undefined ? pred['准确率'] + '%' : '';
+                    row['误差'] = pred['误差'] !== null && pred['误差'] !== undefined ? pred['误差'] : '';
+                }
+                
+                return row;
+            });
+            
+            // 生成CSV
+            const csv = convertToCSV(csvData, headers);
+            
+            // 生成文件名
+            const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+            const filename = `线路预测结果_${dateStr}.csv`;
+            
+            // 下载
+            downloadCSV(csv, filename);
+        }
+        
+        function exportStationPredictResultsToCSV() {
+            if (!currentStationPredictData || !currentStationPredictData.predictions || currentStationPredictData.predictions.length === 0) {
+                alert('没有可导出的数据');
+                return;
+            }
+            
+            // 定义CSV列头
+            const headers = ['车站ID', '车站名称', '预测日期', '第几天', '基期日均', '最优增长率', '最优来源年份', '预测客流'];
+            
+            // 如果有实际数据，添加实际相关列
+            if (currentStationPredictData.has_actual) {
+                headers.push('实际客流', '准确率', '误差');
+            }
+            
+            // 准备数据
+            const csvData = currentStationPredictData.predictions.map(pred => {
+                const row = {
+                    '车站ID': pred['车站ID'],
+                    '车站名称': pred['车站名称'],
+                    '预测日期': pred['预测日期'],
+                    '第几天': pred['第几天'],
+                    '基期日均': pred['基期日均'],
+                    '最优增长率': pred['最优增长率'] + '%',
+                    '最优来源年份': pred['最优来源年份'],
+                    '预测客流': pred['预测客流']
+                };
+                
+                if (currentStationPredictData.has_actual) {
+                    row['实际客流'] = pred['实际客流'] !== null && pred['实际客流'] !== undefined ? pred['实际客流'] : '';
+                    row['准确率'] = pred['准确率'] !== null && pred['准确率'] !== undefined ? pred['准确率'] + '%' : '';
+                    row['误差'] = pred['误差'] !== null && pred['误差'] !== undefined ? pred['误差'] : '';
+                }
+                
+                return row;
+            });
+            
+            // 生成CSV
+            const csv = convertToCSV(csvData, headers);
+            
+            // 生成文件名
+            const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+            const filename = `车站预测结果_${dateStr}.csv`;
+            
+            // 下载
+            downloadCSV(csv, filename);
+        }
+        
         function displayStationPredictResults(data) {
             console.log('显示车站预测结果:', data);
             
+            // 保存数据用于导出
+            currentStationPredictData = data;
+            
             const resultsPanel = document.getElementById('stationPredictResultsPanel');
             const recordCount = document.getElementById('stationPredictRecordCount');
+            const exportBtn = document.getElementById('exportStationPredictCSVBtn');
             const accuracyPanel = document.getElementById('stationAccuracyPanel');
             const accuracyGrid = document.getElementById('stationAccuracyGrid');
             const dataContainer = document.getElementById('stationDataContainer');
@@ -3665,6 +3865,9 @@
             accuracyGrid.innerHTML = '';
             
             recordCount.textContent = `${data.predictions.length} 条预测`;
+            if (exportBtn) {
+                exportBtn.style.display = 'inline-flex';
+            }
             
             const infoDiv = document.createElement('div');
             infoDiv.className = 'metric-info';

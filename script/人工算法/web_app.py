@@ -710,8 +710,10 @@ def predict_flow():
         print(f"{'='*60}\n")
         
         # 计算基期
-        from datetime import datetime
+        from datetime import datetime, timedelta
+        from dateutil.relativedelta import relativedelta
         predict_start_date = datetime.strptime(predict_start, '%Y%m%d')
+        predict_end_date = datetime.strptime(predict_end, '%Y%m%d')
         predict_year = predict_start_date.year
         predict_month = predict_start_date.month
         
@@ -765,14 +767,45 @@ def predict_flow():
             # 检查是否有自定义配置
             if custom_configs and str(history_year) in custom_configs:
                 config = custom_configs[str(history_year)]
-                history_start = config['ref_start'].replace('-', '')
-                history_end = config['ref_end'].replace('-', '')
-                history_base_start = config['base_start'].replace('-', '')
-                history_base_end = config['base_end'].replace('-', '')
+                # 处理日期格式：前端发送的是 YYYY-MM-DD 格式，需要转换为 YYYYMMDD
+                ref_start_str = config['ref_start'].replace('-', '')
+                ref_end_str = config['ref_end'].replace('-', '')
+                base_start_str = config['base_start'].replace('-', '')
+                base_end_str = config['base_end'].replace('-', '')
+                
+                # 验证日期格式和范围
+                try:
+                    ref_start_date = datetime.strptime(ref_start_str, '%Y%m%d')
+                    ref_end_date = datetime.strptime(ref_end_str, '%Y%m%d')
+                    if ref_start_date > ref_end_date:
+                        print(f"⚠️ 警告：{history_year}年参考期开始日期晚于结束日期，跳过")
+                        continue
+                    history_start = ref_start_str
+                    history_end = ref_end_str
+                except ValueError as e:
+                    print(f"⚠️ 错误：{history_year}年参考期日期格式错误：{e}，跳过")
+                    continue
+                
+                try:
+                    base_start_date = datetime.strptime(base_start_str, '%Y%m%d')
+                    base_end_date = datetime.strptime(base_end_str, '%Y%m%d')
+                    if base_start_date > base_end_date:
+                        print(f"⚠️ 警告：{history_year}年基期开始日期晚于结束日期，跳过")
+                        continue
+                    history_base_start = base_start_str
+                    history_base_end = base_end_str
+                except ValueError as e:
+                    print(f"⚠️ 错误：{history_year}年基期日期格式错误：{e}，跳过")
+                    continue
+                
+                print(f"使用自定义配置：参考期 {history_start} - {history_end}，基期 {history_base_start} - {history_base_end}")
             else:
-                # 使用默认计算
-                history_start = f"{history_year}{predict_start[4:]}"
-                history_end = f"{history_year}{predict_end[4:]}"
+                # 使用默认计算：参考期 = 预测期 - i年（正确处理跨年情况）
+                # 例如：预测期 2025-12-31 到 2026-01-03，前1年参考期应该是 2024-12-31 到 2025-01-03
+                history_start_date = predict_start_date - relativedelta(years=i)
+                history_end_date = predict_end_date - relativedelta(years=i)
+                history_start = history_start_date.strftime('%Y%m%d')
+                history_end = history_end_date.strftime('%Y%m%d')
                 
                 # 查询历年基期（该年的上月）
                 history_base_month = predict_month - 1
@@ -787,11 +820,20 @@ def predict_flow():
             
             try:
                 # 查询历年参考期数据
+                print(f"查询参考期数据：{history_start} - {history_end}")
                 df_history = read_line_daily_flow_history(metric_type, history_start, history_end)
                 if df_history.empty:
                     print(f"⚠️ {history_year}年参考期数据为空，跳过")
                     continue
                 df_history = df_history.rename(columns={'F_KLCOUNT': metric_name})
+                
+                # 检查是否跨年
+                if 'F_YEAR' in df_history.columns:
+                    unique_years = df_history['F_YEAR'].unique()
+                    if len(unique_years) > 1:
+                        print(f"📅 参考期跨年：包含年份 {sorted(unique_years)}")
+                    else:
+                        print(f"📅 参考期年份：{unique_years[0]}")
                 
                 # 查询历年基期
                 df_history_base = read_line_daily_flow_history(metric_type, history_base_start, history_base_end)
@@ -804,8 +846,11 @@ def predict_flow():
                 history_base_avg = df_history_base.groupby(['F_LINENO', 'F_LINENAME'])[metric_name].mean().reset_index()
                 history_base_avg.columns = ['F_LINENO', 'F_LINENAME', f'基期日均_{history_year}']
                 
-                # 添加年份标记
-                df_history['年份'] = history_year
+                # 添加年份标记：如果参考期跨年，使用数据本身的F_YEAR字段；否则使用固定的history_year
+                if 'F_YEAR' in df_history.columns:
+                    df_history['年份'] = df_history['F_YEAR']
+                else:
+                    df_history['年份'] = history_year
                 
                 # 合并历年基期
                 df_history = df_history.merge(history_base_avg, on=['F_LINENO', 'F_LINENAME'], how='inner')
@@ -857,17 +902,60 @@ def predict_flow():
         # 第三步：为历年数据标记"第几天"
         print("\n===== 开始计算预测 =====")
         
+        # 计算预测日期范围的总天数（用于标记"第几天"）
+        predict_days = (predict_end_date - predict_start_date).days + 1
+        print(f"预测日期范围：{predict_start} 到 {predict_end}，共{predict_days}天")
+        
         # 为每年的每条线路标记"第几天"
-        for year in df_all_history['年份'].unique():
-            for line_no in df_all_history['F_LINENO'].unique():
-                mask = (df_all_history['年份'] == year) & (df_all_history['F_LINENO'] == line_no)
-                dates = df_all_history[mask]['F_DATE'].sort_values().unique()
-                day_mapping = {date: idx + 1 for idx, date in enumerate(dates)}
-                df_all_history.loc[mask, '第几天'] = df_all_history.loc[mask, 'F_DATE'].map(day_mapping)
+        # 基于预测日期范围，为历年数据中的每个日期计算它是"第几天"
+        # 注意：当参考期跨年时，需要根据数据的实际日期来判断它属于哪个参考期
+        
+        # 首先，为每个参考期计算开始日期
+        ref_start_dates = {}  # {history_year: ref_start_date}
+        for i in range(1, history_years + 1):
+            history_year = predict_year - i
+            if custom_configs and str(history_year) in custom_configs:
+                config = custom_configs[str(history_year)]
+                ref_start_str = config['ref_start'].replace('-', '')
+                ref_start_dates[history_year] = datetime.strptime(ref_start_str, '%Y%m%d')
+            else:
+                ref_start_dates[history_year] = predict_start_date - relativedelta(years=i)
+        
+        # 为每条线路的每个日期计算"第几天"
+        for line_no in df_all_history['F_LINENO'].unique():
+            line_data = df_all_history[df_all_history['F_LINENO'] == line_no].copy()
+            
+            def calculate_day_num_for_date(row):
+                """根据数据的实际日期计算它是第几天"""
+                try:
+                    date_str = str(row['F_DATE'])
+                    date_obj = datetime.strptime(date_str, '%Y%m%d')
+                    
+                    # 遍历所有参考期，找到该日期属于哪个参考期
+                    for history_year, ref_start in ref_start_dates.items():
+                        # 计算该日期相对于参考期开始的天数
+                        day_diff = (date_obj - ref_start).days + 1
+                        # 如果天数在有效范围内（1到predict_days），说明该日期属于这个参考期
+                        if 1 <= day_diff <= predict_days:
+                            return day_diff
+                    
+                    # 如果没有找到匹配的参考期，返回None
+                    return None
+                except:
+                    return None
+            
+            # 为这条线路的所有数据计算"第几天"
+            mask = df_all_history['F_LINENO'] == line_no
+            df_all_history.loc[mask, '第几天'] = df_all_history[mask].apply(calculate_day_num_for_date, axis=1)
         
         print(f"标记完成，开始计算每天的最优增长率...")
         
         # 第四步：计算每条线路每天的最优增长率
+        # 首先计算预测日期范围的总天数
+        from datetime import timedelta
+        predict_days = (predict_end_date - predict_start_date).days + 1
+        print(f"预测日期范围：{predict_start} 到 {predict_end}，共{predict_days}天")
+        
         predictions = []
         
         for line_no in base_avg['F_LINENO'].unique():
@@ -879,9 +967,21 @@ def predict_flow():
             if line_history.empty:
                 continue
             
-            # 按"第几天"分组，取最大增长率
-            for day_num in sorted(line_history['第几天'].dropna().unique()):
+            # 基于预测日期范围生成所有应该预测的日期（第1天到第N天）
+            for day_num in range(1, predict_days + 1):
+                # 查找该"第几天"的历年数据
                 day_data = line_history[line_history['第几天'] == day_num]
+                
+                if day_data.empty:
+                    # 如果该天没有历年数据，输出详细调试信息
+                    print(f"  警告：线路{line_no}({line_name})第{day_num}天没有历年数据")
+                    print(f"    预测日期：{(predict_start_date + timedelta(days=day_num - 1)).strftime('%Y%m%d')}")
+                    print(f"    历年数据中的'第几天'：{sorted(line_history['第几天'].dropna().unique().tolist())}")
+                    print(f"    历年数据中的日期：{sorted(line_history['F_DATE'].unique().tolist())}")
+                    # 跳过该天
+                    continue
+                
+                # 取最大增长率
                 max_growth_rate = day_data['增长率'].max()
                 max_year = day_data.loc[day_data['增长率'].idxmax(), '年份']
                 
@@ -889,8 +989,7 @@ def predict_flow():
                 predicted_flow = base_daily_avg * (1 + max_growth_rate / 100)
                 
                 # 生成预测日期
-                from datetime import timedelta
-                predict_date_obj = predict_start_date + timedelta(days=int(day_num) - 1)
+                predict_date_obj = predict_start_date + timedelta(days=day_num - 1)
                 predict_date_str = predict_date_obj.strftime('%Y%m%d')
                 
                 predictions.append({
@@ -1096,9 +1195,11 @@ def predict_station_flow():
         print(f"{'='*60}\n")
         
         from datetime import datetime, timedelta
+        from dateutil.relativedelta import relativedelta
         import calendar
         
         predict_start_date = datetime.strptime(predict_start, '%Y%m%d')
+        predict_end_date = datetime.strptime(predict_end, '%Y%m%d')
         predict_year = predict_start_date.year
         predict_month = predict_start_date.month
         
@@ -1134,13 +1235,45 @@ def predict_station_flow():
             
             if custom_configs and str(history_year) in custom_configs:
                 config = custom_configs[str(history_year)]
-                history_start = config['ref_start'].replace('-', '')
-                history_end = config['ref_end'].replace('-', '')
-                history_base_start = config['base_start'].replace('-', '')
-                history_base_end = config['base_end'].replace('-', '')
+                # 处理日期格式：前端发送的是 YYYY-MM-DD 格式，需要转换为 YYYYMMDD
+                ref_start_str = config['ref_start'].replace('-', '')
+                ref_end_str = config['ref_end'].replace('-', '')
+                base_start_str = config['base_start'].replace('-', '')
+                base_end_str = config['base_end'].replace('-', '')
+                
+                # 验证日期格式和范围
+                try:
+                    ref_start_date = datetime.strptime(ref_start_str, '%Y%m%d')
+                    ref_end_date = datetime.strptime(ref_end_str, '%Y%m%d')
+                    if ref_start_date > ref_end_date:
+                        print(f"  ⚠️ 警告：{history_year}年参考期开始日期晚于结束日期，跳过")
+                        continue
+                    history_start = ref_start_str
+                    history_end = ref_end_str
+                except ValueError as e:
+                    print(f"  ⚠️ 错误：{history_year}年参考期日期格式错误：{e}，跳过")
+                    continue
+                
+                try:
+                    base_start_date = datetime.strptime(base_start_str, '%Y%m%d')
+                    base_end_date = datetime.strptime(base_end_str, '%Y%m%d')
+                    if base_start_date > base_end_date:
+                        print(f"  ⚠️ 警告：{history_year}年基期开始日期晚于结束日期，跳过")
+                        continue
+                    history_base_start = base_start_str
+                    history_base_end = base_end_str
+                except ValueError as e:
+                    print(f"  ⚠️ 错误：{history_year}年基期日期格式错误：{e}，跳过")
+                    continue
+                
+                print(f"  ✓ 使用自定义配置：参考期 {history_start} - {history_end}，基期 {history_base_start} - {history_base_end}")
             else:
-                history_start = f"{history_year}{predict_start[4:]}"
-                history_end = f"{history_year}{predict_end[4:]}"
+                # 使用默认计算：参考期 = 预测期 - i年（正确处理跨年情况）
+                # 例如：预测期 2025-12-31 到 2026-01-03，前1年参考期应该是 2024-12-31 到 2025-01-03
+                history_start_date = predict_start_date - relativedelta(years=i)
+                history_end_date = predict_end_date - relativedelta(years=i)
+                history_start = history_start_date.strftime('%Y%m%d')
+                history_end = history_end_date.strftime('%Y%m%d')
                 
                 history_base_month = predict_month - 1
                 history_base_year = history_year
@@ -1161,6 +1294,14 @@ def predict_station_flow():
                 df_history = df_history.rename(columns={'F_KLCOUNT': metric_name})
                 print(f"  ✓ 参考期：{len(df_history)}行，{df_history['F_LINENO'].nunique()}个车站")
                 
+                # 检查是否跨年
+                if 'F_YEAR' in df_history.columns:
+                    unique_years = df_history['F_YEAR'].unique()
+                    if len(unique_years) > 1:
+                        print(f"  📅 参考期跨年：包含年份 {sorted(unique_years)}")
+                    else:
+                        print(f"  📅 参考期年份：{unique_years[0]}")
+                
                 print(f"  🔸 查询基期：{history_base_start} - {history_base_end}")
                 df_history_base = read_station_daily_flow_history(metric_type, history_base_start, history_base_end)
                 if df_history_base.empty:
@@ -1175,7 +1316,11 @@ def predict_station_flow():
                 print(f"  ✓ 基期日均：{len(history_base_avg)}个车站")
                 
                 print(f"  🔸 合并数据并计算增长率...")
-                df_history['年份'] = history_year
+                # 添加年份标记：如果参考期跨年，使用数据本身的F_YEAR字段；否则使用固定的history_year
+                if 'F_YEAR' in df_history.columns:
+                    df_history['年份'] = df_history['F_YEAR']
+                else:
+                    df_history['年份'] = history_year
                 before_merge = len(df_history)
                 df_history = df_history.merge(history_base_avg, on=['F_LINENO', 'F_LINENAME'], how='inner')
                 after_merge = len(df_history)
@@ -1231,7 +1376,10 @@ def predict_station_flow():
         # 计算预测
         predictions = []
         
+        # 计算预测日期范围的总天数
+        predict_days = (predict_end_date - predict_start_date).days + 1
         print(f"\n🔮 开始预测计算...")
+        print(f"📅 预测日期范围：{predict_start} 到 {predict_end}，共{predict_days}天")
         print(f"📊 待预测车站数：{len(base_avg)}个")
         
         station_processed = 0
@@ -1250,13 +1398,22 @@ def predict_station_flow():
                 continue
             
             day_count = 0
-            for day_num in sorted(line_history['第几天'].dropna().unique()):
+            # 基于预测日期范围生成所有应该预测的日期（第1天到第N天）
+            for day_num in range(1, predict_days + 1):
+                # 查找该"第几天"的历年数据
                 day_data = line_history[line_history['第几天'] == day_num]
+                
+                if day_data.empty:
+                    # 如果该天没有历年数据，跳过
+                    if station_processed <= 3:
+                        print(f"    ⚠️  第{day_num}天没有历年数据，跳过")
+                    continue
+                
                 max_growth_rate = day_data['增长率'].max()
                 max_year = day_data.loc[day_data['增长率'].idxmax(), '年份']
                 
                 predicted_flow = base_daily_avg * (1 + max_growth_rate / 100)
-                predict_date_obj = predict_start_date + timedelta(days=int(day_num) - 1)
+                predict_date_obj = predict_start_date + timedelta(days=day_num - 1)
                 predict_date_str = predict_date_obj.strftime('%Y%m%d')
                 
                 predictions.append({

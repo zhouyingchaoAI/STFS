@@ -1,5 +1,12 @@
-# KNN 24小时客流预测模型（F_HOUR为0-23，F_DATE为20240101格式，优化版）
-# 早上6点以前预测结果完全使用历史参考数据，假如历史数据为空则该小时直接为零
+# KNN 24小时客流预测模型
+"""
+该模块实现 KNN 小时客流预测算法，特点：
+- 支持 24 小时分时段预测
+- 早晨 6 点前使用纯历史偏移
+- 节假日/工作日/周末区分预测
+- 早晚高峰因子
+"""
+
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error
@@ -7,21 +14,13 @@ import pandas as pd
 import numpy as np
 import joblib
 import os
-import logging
 from datetime import datetime, timedelta
 from typing import Optional, Tuple, List, Dict
 
-def get_logger():
-    logger = logging.getLogger(__name__)
-    if not logger.handlers:
-        handler = logging.StreamHandler()
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-    logger.setLevel(logging.INFO)
-    return logger
+from common_utils import sanitize_filename
+from logger_config import get_model_logger
 
-logger = get_logger()
+logger = get_model_logger()
 
 DEFAULT_KNN_FACTORS = [
     'F_YEAR', 'F_HOLIDAYWHICHDAY', 'F_DAYOFWEEK', 'F_WEATHER',
@@ -105,16 +104,8 @@ def calculate_date_features(row) -> int:
     return 1  # 平日
 
 def sanitize_line_no(line_no: str) -> str:
-    """清理线路名，将不适合作为文件名的字符替换为安全字符"""
-    if not isinstance(line_no, str):
-        line_no = str(line_no)
-    sanitized = line_no.replace('/', '-').replace('\\', '-').replace(':', '-')
-    sanitized = sanitized.replace('*', '-').replace('?', '-').replace('"', '-')
-    sanitized = sanitized.replace('<', '-').replace('>', '-').replace('|', '-')
-    sanitized = sanitized.strip('. ')
-    if not sanitized:
-        sanitized = 'unknown'
-    return sanitized
+    """清理线路名，使用通用工具函数"""
+    return sanitize_filename(line_no) if line_no else 'unknown'
 
 
 DEFAULT_LINE_WEIGHTS = {

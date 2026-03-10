@@ -96,3 +96,48 @@ def get_current_version(config_obj: Optional[Dict] = None, config_path: str = DE
         config_obj["current_version"] = version
         save_yaml_config(config_obj, config_path)
     return version
+
+
+def filter_lines_by_config(
+    lines: list,
+    config_obj: Optional[Dict] = None,
+    config_key: str = "xianwangxianlu_daily_predict"
+) -> list:
+    """
+    根据配置过滤线路列表
+    
+    参数:
+        lines: 原始线路列表
+        config_obj: 配置字典
+        config_key: 配置项键名（如 xianwangxianlu_daily_predict）
+        
+    返回:
+        过滤后的线路列表
+    """
+    if config_obj is None:
+        config_obj = load_yaml_config(DEFAULT_DAILY_CONFIG_PATH)
+    
+    # 获取线路配置
+    line_config = config_obj.get(config_key, {})
+    
+    # 是否启用过滤
+    enable_filter = line_config.get("enable_filter", False)
+    if not enable_filter:
+        return lines  # 不过滤，返回全部线路
+    
+    # 获取启用和禁用的线路列表
+    enabled_lines = line_config.get("enabled_lines", [])
+    disabled_lines = line_config.get("disabled_lines", [])
+    
+    # 如果 enabled_lines 为空，则启用所有线路
+    if not enabled_lines:
+        filtered_lines = lines
+    else:
+        # 只保留启用的线路
+        filtered_lines = [line for line in lines if line in enabled_lines]
+    
+    # 排除禁用的线路
+    if disabled_lines:
+        filtered_lines = [line for line in filtered_lines if line not in disabled_lines]
+    
+    return filtered_lines

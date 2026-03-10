@@ -1558,4 +1558,3 @@ def upload_station_hourly_prediction_sample(prediction_rows: List[Dict], metric_
         conn.close()
     except Exception as e:
         print(f"插入小时预测结果失败: {e}")
-

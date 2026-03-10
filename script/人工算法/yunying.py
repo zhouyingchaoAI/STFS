@@ -23,7 +23,7 @@ DB_CONFIG = CONFIG.get('db', {
 
 # 车站过滤配置
 STATION_FILTER_NAMES = CONFIG.get('STATION_FILTER_NAMES', [])
-QUERY_START_DATE = CONFIG.get('QUERY_START_DATE', '20230101')
+QUERY_START_DATE = CONFIG.get('QUERY_START_DATE', '20170101')
 
 def fix_chinese_encoding(text):
     """修复中文字符编码问题"""
@@ -70,14 +70,17 @@ def fix_chinese_encoding(text):
         return text
 
 def get_db_conn():
-    import pymssql
-    return pymssql.connect(
-        server=DB_CONFIG["server"],
-        user=DB_CONFIG["user"],
-        password=DB_CONFIG["password"],
-        database=DB_CONFIG["database"],
-        port=DB_CONFIG["port"]
+    """获取数据库连接（使用 SQLAlchemy 引擎，兼容 pandas）"""
+    from sqlalchemy import create_engine
+    from urllib.parse import quote_plus
+    
+    # 构建连接字符串
+    connection_string = (
+        f"mssql+pymssql://{DB_CONFIG['user']}:{quote_plus(DB_CONFIG['password'])}"
+        f"@{DB_CONFIG['server']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
     )
+    engine = create_engine(connection_string, echo=False)
+    return engine
 
 def _get_station_filter_sql(alias="S"):
     """
@@ -143,13 +146,6 @@ def read_station_daily_flow_history(metric_type: str, start_date: str, end_date:
             S.STATION_NAME AS F_LINENO,
             S.STATION_NAME AS F_LINENAME,
             SUM({selected_field}) AS F_KLCOUNT,
-            MIN(C.F_DATEFEATURES) AS F_DATEFEATURES,
-            MIN(C.F_ISHOLIDAY) AS F_ISHOLIDAY,
-            MIN(C.F_ISNONGLI) AS F_ISNONGLI,
-            MIN(C.F_ISYANGLI) AS F_ISYANGLI,
-            MIN(C.F_NEXTDAY) AS F_NEXTDAY,
-            MIN(C.F_HOLIDAYTHDAY) AS F_HOLIDAYTHDAY,
-            MIN(C.IS_FIRST) AS IS_FIRST,
             MIN(CC.F_YEAR) AS F_YEAR,
             MIN(CC.F_DAYOFWEEK) AS F_DAYOFWEEK,
             MIN(CC.F_WEEK) AS F_WEEK,
@@ -161,9 +157,6 @@ def read_station_daily_flow_history(metric_type: str, start_date: str, end_date:
             MIN(W.F_TQQK) AS WEATHER_TYPE
         FROM 
             [StationFlowPredict].[dbo].[STATION_FLOW_HISTORY] AS S
-        LEFT JOIN 
-            master.dbo.LSTM_COMMON_HOLIDAYFEATURE AS C
-            ON REPLACE(S.SQUAD_DATE, '-', '') = C.F_DATE
         LEFT JOIN 
             master.dbo.CalendarHistory AS CC
             ON REPLACE(S.SQUAD_DATE, '-', '') = CC.F_DATE
@@ -187,7 +180,8 @@ def read_station_daily_flow_history(metric_type: str, start_date: str, end_date:
         
         df = pd.read_sql(query, conn)
 
-        conn.close()
+        # SQLAlchemy 引擎会自动管理连接，但显式关闭以释放资源
+        conn.dispose()
         print(f"车站数据查询完成：{len(df)}行")
 
         if df.empty:
@@ -195,12 +189,13 @@ def read_station_daily_flow_history(metric_type: str, start_date: str, end_date:
             return df
         
         # 合并相同F_DATE和F_LINENAME的数据（数值字段求和，其余字段取第一个）
+        # 跨年查询时会按F_YEAR分组，避免不同年份的同一天被错误合并
         print(f"开始合并车站数据，原始{len(df)}行...")
         sum_fields = ['F_KLCOUNT']
         first_fields = [
-            'F_LINENO', 'F_LINENAME', 'F_WEEK', 'F_DATEFEATURES', 'F_HOLIDAYTYPE',
-            'F_ISHOLIDAY', 'F_ISNONGLI', 'F_ISYANGLI', 'F_NEXTDAY', 'F_HOLIDAYDAYS',
-            'F_HOLIDAYTHDAY', 'IS_FIRST', 'WEATHER_TYPE', 'F_YEAR', 'F_DAYOFWEEK', 'F_HOLIDAYWHICHDAY', 'COVID19', 'F_WEATHER'
+            'F_LINENO', 'F_LINENAME', 'F_WEEK', 'F_HOLIDAYTYPE',
+            'F_HOLIDAYDAYS',
+            'WEATHER_TYPE', 'F_YEAR', 'F_DAYOFWEEK', 'F_HOLIDAYWHICHDAY', 'COVID19', 'F_WEATHER'
         ]
         
         # 检查必需字段是否存在
@@ -216,7 +211,12 @@ def read_station_daily_flow_history(metric_type: str, start_date: str, end_date:
             sum_fields = [f for f in sum_fields if f in df.columns]
             first_fields = [f for f in first_fields if f in df.columns]
         
-        grouped = df.groupby(['F_DATE', 'F_LINENAME'], as_index=False).agg(
+        # 跨年查询时需要按年份分组，避免不同年份的同一天被合并
+        groupby_fields = ['F_DATE', 'F_LINENAME']
+        if 'F_YEAR' in df.columns:
+            groupby_fields.append('F_YEAR')
+        
+        grouped = df.groupby(groupby_fields, as_index=False).agg(
             {**{f: 'sum' for f in sum_fields},
              **{f: 'first' for f in first_fields}}
         )
@@ -289,13 +289,6 @@ def read_line_daily_flow_history(metric_type: str, start_date: str, end_date: st
             L.F_LINENO,
             L.F_LINENAME,
             {selected_field} AS F_KLCOUNT,
-            C.F_DATEFEATURES,
-            C.F_ISHOLIDAY,
-            C.F_ISNONGLI,
-            C.F_ISYANGLI,
-            C.F_NEXTDAY,
-            C.F_HOLIDAYTHDAY,
-            C.IS_FIRST,
             CC.F_YEAR,
             CC.F_DAYOFWEEK,
             CC.F_WEEK,
@@ -307,9 +300,6 @@ def read_line_daily_flow_history(metric_type: str, start_date: str, end_date: st
             W.F_TQQK AS WEATHER_TYPE
         FROM 
             dbo.LineDailyFlowHistory AS L
-        LEFT JOIN 
-            dbo.LSTM_COMMON_HOLIDAYFEATURE AS C
-            ON L.F_DATE = C.F_DATE
         LEFT JOIN 
             dbo.CalendarHistory AS CC
             ON L.F_DATE = CC.F_DATE
@@ -325,7 +315,11 @@ def read_line_daily_flow_history(metric_type: str, start_date: str, end_date: st
         """
 
         df = pd.read_sql(query, conn)
-        conn.close()
+
+        print(df) 
+        print(query)
+        # SQLAlchemy 引擎会自动管理连接，但显式关闭以释放资源
+        conn.dispose()
         
         # 智能编码修复
         for col in df.columns:

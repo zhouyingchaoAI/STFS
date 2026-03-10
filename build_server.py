@@ -9,6 +9,7 @@ modules = [
     "streamlit_app.py",
     "streamlit_daily.py",
     "streamlit_hourly.py",
+    "streamlit_holiday.py",
     "predict_daily.py",
     "predict_hourly.py",
     "hourknn_model.py",
@@ -18,6 +19,12 @@ modules = [
     "plot_utils.py",
     "font_utils.py",
     "weather_enum.py",
+    "common_utils.py",
+    "logger_config.py",
+    "ui_components.py",
+    "db_pool.py",
+    "holiday_predict_utils.py",
+
 ]
 
 # 新建 STFS_V1 文件夹，新建失败需要提示
@@ -95,7 +102,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
 # 需要复制的文件
-copy_files = ["main.py", "server.py", "supervisord.conf", "db_config.yaml", "stationid_stationname_to_lineid.yaml"]
+copy_files = ["main.py", "server.py", "supervisord.conf", "db_config.yaml", "stationid_stationname_to_lineid.yaml", "model_config_daily.yaml"]
 print("\n开始复制文件...")
 for fname in copy_files:
     src = os.path.join(os.path.dirname(__file__), fname)
