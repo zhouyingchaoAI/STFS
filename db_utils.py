@@ -1208,7 +1208,7 @@ def upload_xianwangxianlu_daily_prediction_sample(prediction_rows: List[Dict], m
                 PREDICT_DATE=%s,
                 PREDICT_WEATHER=%s,
                 F_TYPE=%s
-            WHERE F_DATE=%s AND F_LINENO=%s
+            WHERE F_DATE=%s AND F_LINENO=%s AND CREATOR=%s
             """
             update_params = (
                 to_int(row.get('F_HOLIDAYTYPE')),
@@ -1231,7 +1231,8 @@ def upload_xianwangxianlu_daily_prediction_sample(prediction_rows: List[Dict], m
                 to_int(row.get('PREDICT_WEATHER')),
                 to_ftype_int(row.get('F_TYPE')),
                 to_int(row.get('F_DATE')),
-                to_int(row.get('F_LINENO'))
+                to_int(row.get('F_LINENO')),
+                row.get('CREATOR')
             )
             cursor.execute(update_sql, update_params)
             if cursor.rowcount == 0:

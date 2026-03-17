@@ -25,6 +25,7 @@ from enknn_model import KNNFlowPredictor
 from config_utils import get_version_dir, get_current_version, filter_lines_by_config
 from plot_utils import plot_daily_predictions
 from weather_enum import WeatherType
+from holiday_predict_utils import predict_line_flow as expert_predict_line_flow
 from common_utils import (
     to_int, safe_get, safe_get_int,
     normalize_line_no, validate_required_columns,
@@ -51,6 +52,22 @@ FACTOR_COLUMNS = [
     'F_HOLIDAYWHICHDAY', 'F_DAYOFWEEK', 'F_LINENO', 'F_LINENAME',
     'F_KLCOUNT', 'F_WEATHER', 'WEATHER_TYPE'
 ]
+
+DEFAULT_HOLIDAY_FUSION_ALPHA = 0.9
+HOLIDAY_FUSION_ALPHA_BY_TYPE = {
+    1: 1.0,
+    2: 1.0,
+    3: 1.0,
+    4: 0.1,
+    5: 0.7,
+    6: 0.9,
+    7: 0.5,
+}
+SPRING_FESTIVAL_SEGMENT_ALPHA = {
+    "early": 1.0,
+    "mid": 0.0,
+    "late": 1.0,
+}
 
 
 # =============================================================================
@@ -197,6 +214,64 @@ def get_factor_row(
     if not factor_df.empty:
         return factor_df.iloc[0]
     return None
+
+
+def get_holiday_fusion_alpha(factor_row: Optional[pd.Series]) -> float:
+    """按节日类型返回融合权重，春节按假期第几天单独处理。"""
+    holiday_type_id = safe_get_int(factor_row, 'F_HOLIDAYTYPE') if factor_row is not None else 0
+    which_day = safe_get_int(factor_row, 'F_HOLIDAYWHICHDAY') if factor_row is not None else 0
+
+    if holiday_type_id == 2:
+        if which_day <= 3:
+            return SPRING_FESTIVAL_SEGMENT_ALPHA["early"]
+        if which_day <= 5:
+            return SPRING_FESTIVAL_SEGMENT_ALPHA["mid"]
+        return SPRING_FESTIVAL_SEGMENT_ALPHA["late"]
+
+    return HOLIDAY_FUSION_ALPHA_BY_TYPE.get(holiday_type_id, DEFAULT_HOLIDAY_FUSION_ALPHA)
+
+
+def build_fusion_prediction_rows(
+    ml_rows: List[Dict],
+    predict_start_date: str,
+    days: int,
+    metric_type: str,
+) -> List[Dict]:
+    """基于机器学习结果与专家系统生成融合预测入库数据。"""
+    if not ml_rows:
+        return []
+
+    expert_result = expert_predict_line_flow(metric_type, predict_start_date, (datetime.strptime(predict_start_date, '%Y%m%d') + timedelta(days=days - 1)).strftime('%Y%m%d'), history_years=2)
+    expert_predictions = expert_result.get("predictions", []) if isinstance(expert_result, dict) else []
+    expert_by_key = {}
+    for pred in expert_predictions:
+        expert_by_key[(str(pred.get("线路名称", "")), str(pred.get("预测日期", "")))] = pred
+
+    fusion_rows = []
+    for ml_row in ml_rows:
+        line_name = str(ml_row.get('F_LINENAME', ''))
+        pred_date = str(ml_row.get('F_DATE', ''))
+        expert_row = expert_by_key.get((line_name, pred_date))
+        if not expert_row:
+            continue
+
+        factor_stub = pd.Series({
+            'F_HOLIDAYTYPE': ml_row.get('F_HOLIDAYTYPE'),
+            'F_HOLIDAYWHICHDAY': ml_row.get('F_HOLIDAYWHICHDAY'),
+        })
+        fusion_alpha = get_holiday_fusion_alpha(factor_stub)
+        ml_value = int(ml_row.get('F_PKLCOUNT', 0))
+        expert_value = int(expert_row.get('预测客流', 0))
+        fused_value = int(fusion_alpha * ml_value + (1 - fusion_alpha) * expert_value)
+
+        fusion_row = dict(ml_row)
+        fusion_row['ID'] = str(uuid.uuid4())
+        fusion_row['F_PKLCOUNT'] = fused_value
+        fusion_row['CREATOR'] = 'fusion_predict'
+        fusion_row['REMARKS'] = generate_remarks_hash(f"融合日预测 alpha={fusion_alpha:.1f}")
+        fusion_rows.append(fusion_row)
+
+    return fusion_rows
 
 
 # =============================================================================
@@ -468,6 +543,10 @@ def _save_and_plot_results(
     # 保存到数据库
     if flow_type == 'xianwangxianlu':
         upload_xianwangxianlu_daily_prediction_sample(prediction_rows, metric_type)
+        fusion_rows = build_fusion_prediction_rows(prediction_rows, predict_start_date, days, metric_type)
+        if fusion_rows:
+            upload_xianwangxianlu_daily_prediction_sample(fusion_rows, metric_type)
+            logger.info(f"融合日预测已写库: {len(fusion_rows)} 条, CREATOR=fusion_predict")
     else:
         upload_station_daily_prediction_sample(prediction_rows, metric_type)
     

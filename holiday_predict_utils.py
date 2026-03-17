@@ -53,6 +53,8 @@ METRIC_FIELD_MAPPING_STATION = {
     "F_BOARD_ALIGHT": "S.FLOW_NUM"
 }
 
+LEGAL_HOLIDAY_TYPES = {1, 2, 3, 4, 5, 6, 7}
+
 
 def read_line_daily_flow_history_range(metric_type: str, start_date: str, end_date: str) -> pd.DataFrame:
     """
@@ -207,6 +209,120 @@ def calculate_base_period(predict_start: str) -> Tuple[str, str, int, int]:
     base_end = f"{base_year}{str(base_month).zfill(2)}{str(last_day).zfill(2)}"
     
     return base_start, base_end, base_year, base_month
+
+
+def read_calendar_features_range(start_date: str, end_date: str) -> pd.DataFrame:
+    """
+    读取指定日期范围的日历特征。
+
+    返回字段:
+        F_DATE, F_HOLIDAYTYPE, F_HOLIDAYDAYS, F_HOLIDAYWHICHDAY, F_DAYOFWEEK, F_WEEK, F_YEAR
+    """
+    query = """
+    SELECT
+        F_DATE,
+        F_HOLIDAYTYPE,
+        F_HOLIDAYDAYS,
+        F_HOLIDAYWHICHDAY,
+        F_DAYOFWEEK,
+        F_WEEK,
+        F_YEAR
+    FROM master.dbo.CalendarHistory
+    WHERE F_DATE >= %s AND F_DATE <= %s
+    ORDER BY F_DATE
+    """
+    with get_db_connection() as conn:
+        df = pd.read_sql(query, conn, params=(start_date, end_date))
+    return fix_dataframe_encoding(df)
+
+
+def build_prediction_day_context(predict_start: str, predict_end: str) -> pd.DataFrame:
+    """
+    构建预测日期上下文。
+
+    对于法定节假日，后续按 `F_HOLIDAYTYPE + F_HOLIDAYWHICHDAY` 进行历史匹配；
+    非节假日保留日期位置，作为兜底。
+    """
+    calendar_df = read_calendar_features_range(predict_start, predict_end)
+    if calendar_df.empty:
+        raise ValueError(f"预测日期范围 {predict_start}-{predict_end} 未找到日历特征")
+
+    calendar_df = calendar_df.copy()
+    calendar_df['F_DATE'] = calendar_df['F_DATE'].astype(str).str.strip()
+    calendar_df['F_HOLIDAYTYPE'] = pd.to_numeric(calendar_df['F_HOLIDAYTYPE'], errors='coerce').fillna(0).astype(int)
+    calendar_df['F_HOLIDAYDAYS'] = pd.to_numeric(calendar_df['F_HOLIDAYDAYS'], errors='coerce').fillna(0).astype(int)
+    calendar_df['F_HOLIDAYWHICHDAY'] = pd.to_numeric(calendar_df['F_HOLIDAYWHICHDAY'], errors='coerce').fillna(0).astype(int)
+    calendar_df['is_legal_holiday'] = calendar_df.apply(
+        lambda row: row['F_HOLIDAYTYPE'] in LEGAL_HOLIDAY_TYPES and row['F_HOLIDAYWHICHDAY'] > 0,
+        axis=1
+    )
+    return calendar_df
+
+
+def annotate_holiday_position(df: pd.DataFrame) -> pd.DataFrame:
+    """标准化节假日位置字段，便于按“同节日第几天”匹配。"""
+    if df is None or df.empty:
+        return df
+
+    result = df.copy()
+    result['F_DATE'] = result['F_DATE'].astype(str).str.strip()
+    for col in ['F_HOLIDAYTYPE', 'F_HOLIDAYDAYS', 'F_HOLIDAYWHICHDAY']:
+        if col in result.columns:
+            result[col] = pd.to_numeric(result[col], errors='coerce').fillna(0).astype(int)
+        else:
+            result[col] = 0
+
+    result['is_legal_holiday'] = result.apply(
+        lambda row: row['F_HOLIDAYTYPE'] in LEGAL_HOLIDAY_TYPES and row['F_HOLIDAYWHICHDAY'] > 0,
+        axis=1
+    )
+    return result
+
+
+def choose_holiday_reference_rows(line_history: pd.DataFrame, predict_day: pd.Series) -> pd.DataFrame:
+    """
+    为某个预测日选择历史参考数据。
+
+    匹配规则:
+    1. 优先匹配同节日类型 + 同节日第几天
+    2. 如果历史同类节日天数不足，则使用该节日最后一天补齐
+    3. 非节假日不走专家规则，返回空结果，由外层兜底
+    """
+    if line_history.empty or not bool(predict_day.get('is_legal_holiday')):
+        return line_history.iloc[0:0].copy()
+
+    holiday_type = int(predict_day['F_HOLIDAYTYPE'])
+    target_day = int(predict_day['F_HOLIDAYWHICHDAY'])
+
+    same_holiday = line_history[
+        (line_history['F_HOLIDAYTYPE'] == holiday_type) &
+        (line_history['is_legal_holiday'])
+    ].copy()
+    if same_holiday.empty:
+        return same_holiday
+
+    matched_rows = []
+    for year in sorted(same_holiday['年份'].dropna().unique()):
+        year_rows = same_holiday[same_holiday['年份'] == year].copy()
+        exact_rows = year_rows[year_rows['F_HOLIDAYWHICHDAY'] == target_day].copy()
+        if not exact_rows.empty:
+            exact_rows['匹配方式'] = 'same_holiday_exact'
+            matched_rows.append(exact_rows)
+            continue
+
+        # 历史同类节日天数不足时，用该年的最后一天补齐
+        max_day = int(year_rows['F_HOLIDAYWHICHDAY'].max())
+        supplement_day = max_day if target_day > max_day else int(year_rows['F_HOLIDAYWHICHDAY'].min())
+        supplement_rows = year_rows[year_rows['F_HOLIDAYWHICHDAY'] == supplement_day].copy()
+        if not supplement_rows.empty:
+            supplement_rows['匹配方式'] = 'same_holiday_supplement_last_day'
+            supplement_rows['补齐目标天'] = target_day
+            supplement_rows['补齐来源天'] = supplement_day
+            matched_rows.append(supplement_rows)
+
+    if not matched_rows:
+        return same_holiday.iloc[0:0].copy()
+    return pd.concat(matched_rows, ignore_index=True)
 
 
 def calculate_history_periods(
@@ -370,6 +486,12 @@ def predict_flow(
     predict_month = predict_start_date.month
     predict_days = (predict_end_date - predict_start_date).days + 1
     
+    try:
+        prediction_context = build_prediction_day_context(predict_start, predict_end)
+    except Exception as e:
+        logger.error(f"读取预测日历失败: {e}")
+        return {'success': False, 'error': f'读取预测日历失败: {str(e)}'}
+    
     # 计算基期
     base_start, base_end, base_year, base_month = calculate_base_period(predict_start)
     
@@ -395,10 +517,9 @@ def predict_flow(
     
     logger.info(f"基期日均计算完成: {len(base_avg)}条记录")
     
-    # 查询历年同期数据
+    # 查询历年同节日数据
     all_years_data = []
     history_details = []
-    ref_start_dates = {}  # 用于计算"第几天"
     
     for i in range(1, history_years + 1):
         history_year = predict_year - i
@@ -417,21 +538,18 @@ def predict_flow(
         if periods is None:
             continue
         
-        history_start = periods['history_start']
-        history_end = periods['history_end']
         history_base_start = periods['history_base_start']
         history_base_end = periods['history_base_end']
         
-        # 记录参考期开始日期
-        ref_start_dates[history_year] = datetime.strptime(history_start, '%Y%m%d')
-        
         try:
-            # 查询历年参考期数据
-            df_history = read_data_func(metric_type, history_start, history_end)
+            # 读取该历史年份全年数据，再按同节日类型筛选。
+            year_start = f"{history_year}0101"
+            year_end = f"{history_year}1231"
+            df_history = read_data_func(metric_type, year_start, year_end)
             if df_history.empty:
-                logger.warning(f"{history_year}年参考期数据为空")
+                logger.warning(f"{history_year}年全年数据为空")
                 continue
-            df_history = df_history.rename(columns={'F_KLCOUNT': metric_name})
+            df_history = annotate_holiday_position(df_history.rename(columns={'F_KLCOUNT': metric_name}))
             
             # 查询历年基期
             df_history_base = read_data_func(metric_type, history_base_start, history_base_end)
@@ -466,7 +584,7 @@ def predict_flow(
             # 记录详情
             history_details.append({
                 'year': int(history_year),
-                'ref_period': f"{history_start[:4]}-{history_start[4:6]}-{history_start[6:]} 至 {history_end[:4]}-{history_end[4:6]}-{history_end[6:]}",
+                'ref_period': f"{history_year}-01-01 至 {history_year}-12-31（按同节日类型筛选）",
                 'base_period': f"{history_base_start[:4]}-{history_base_start[4:6]}-{history_base_start[6:]} 至 {history_base_end[:4]}-{history_base_end[4:6]}-{history_base_end[6:]}",
                 'line_stats': []
             })
@@ -493,24 +611,6 @@ def predict_flow(
     df_all_history = pd.concat(all_years_data, ignore_index=True)
     logger.info(f"合并完成: 共{len(df_all_history)}行")
     
-    # 为历年数据标记"第几天"
-    def calculate_day_num(row):
-        try:
-            date_str = str(row['F_DATE'])
-            date_obj = datetime.strptime(date_str, '%Y%m%d')
-            
-            for history_year, ref_start in ref_start_dates.items():
-                day_diff = (date_obj - ref_start).days + 1
-                if 1 <= day_diff <= predict_days:
-                    return day_diff
-            return None
-        except:
-            return None
-    
-    for line_no in df_all_history['F_LINENO'].unique():
-        mask = df_all_history['F_LINENO'] == line_no
-        df_all_history.loc[mask, '第几天'] = df_all_history[mask].apply(calculate_day_num, axis=1)
-    
     # 生成预测
     predictions = []
     
@@ -522,22 +622,47 @@ def predict_flow(
         if line_history.empty:
             continue
         
-        for day_num in range(1, predict_days + 1):
-            day_data = line_history[line_history['第几天'] == day_num]
+        for _, predict_day in prediction_context.iterrows():
+            predict_date_str = str(predict_day['F_DATE'])
+            day_num = int((datetime.strptime(predict_date_str, '%Y%m%d') - predict_start_date).days + 1)
+
+            day_data = choose_holiday_reference_rows(line_history, predict_day)
+            match_method = None
+            source_holiday_day = None
+            target_holiday_day = None
+
+            if not day_data.empty:
+                match_method = str(day_data['匹配方式'].iloc[0]) if '匹配方式' in day_data.columns else None
+                if '补齐来源天' in day_data.columns and pd.notna(day_data['补齐来源天'].iloc[0]):
+                    source_holiday_day = int(day_data['补齐来源天'].iloc[0])
+                if '补齐目标天' in day_data.columns and pd.notna(day_data['补齐目标天'].iloc[0]):
+                    target_holiday_day = int(day_data['补齐目标天'].iloc[0])
+            else:
+                # 非节假日或历史没有找到同类节日时，退化为历史同日期窗口匹配
+                fallback_date = predict_start_date + timedelta(days=day_num - 1)
+                fallback_candidates = []
+                for history_year in sorted(df_all_history['年份'].dropna().unique()):
+                    try:
+                        history_date = fallback_date.replace(year=int(history_year)).strftime('%Y%m%d')
+                    except ValueError:
+                        history_date = (fallback_date - relativedelta(years=(predict_year - int(history_year)))).strftime('%Y%m%d')
+                    exact_fallback = line_history[line_history['F_DATE'] == history_date].copy()
+                    if not exact_fallback.empty:
+                        exact_fallback['匹配方式'] = 'fallback_same_date'
+                        fallback_candidates.append(exact_fallback)
+                if fallback_candidates:
+                    day_data = pd.concat(fallback_candidates, ignore_index=True)
+                    match_method = 'fallback_same_date'
             
             if day_data.empty:
                 continue
             
-            # 取最大增长率
-            max_growth_rate = day_data['增长率'].max()
-            max_year = day_data.loc[day_data['增长率'].idxmax(), '年份']
+            # 使用保守增长率，避免被单一年份的异常高增长放大。
+            selected_growth_rate = day_data['增长率'].min()
+            selected_year = day_data.loc[day_data['增长率'].idxmin(), '年份']
             
             # 预测客流
-            predicted_flow = base_daily_avg * (1 + max_growth_rate / 100)
-            
-            # 生成预测日期
-            predict_date_obj = predict_start_date + timedelta(days=day_num - 1)
-            predict_date_str = predict_date_obj.strftime('%Y%m%d')
+            predicted_flow = base_daily_avg * (1 + selected_growth_rate / 100)
             
             predictions.append({
                 id_field: str(line_no) if is_station else int(line_no),
@@ -545,9 +670,16 @@ def predict_flow(
                 '预测日期': predict_date_str,
                 '第几天': int(day_num),
                 '基期日均': int(base_daily_avg),
-                '最优增长率': round(float(max_growth_rate), 2),
-                '最优来源年份': int(max_year),
-                '预测客流': int(predicted_flow)
+                '最优增长率': round(float(selected_growth_rate), 2),
+                '最优来源年份': int(selected_year),
+                '预测客流': int(predicted_flow),
+                '增长率策略': 'min',
+                '匹配方式': match_method,
+                '节日类型': int(predict_day['F_HOLIDAYTYPE']) if pd.notna(predict_day['F_HOLIDAYTYPE']) else 0,
+                '节日天数': int(predict_day['F_HOLIDAYDAYS']) if pd.notna(predict_day['F_HOLIDAYDAYS']) else 0,
+                '节日第几天': int(predict_day['F_HOLIDAYWHICHDAY']) if pd.notna(predict_day['F_HOLIDAYWHICHDAY']) else 0,
+                '补齐来源天': source_holiday_day,
+                '补齐目标天': target_holiday_day
             })
     
     logger.info(f"预测计算完成: 共{len(predictions)}条记录")

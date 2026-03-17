@@ -63,6 +63,21 @@ ALGO_DISPLAY_MAP = {
 }
 
 ALGO_REAL_MAP = {v: k for k, v in ALGO_DISPLAY_MAP.items()}
+DEFAULT_HOLIDAY_FUSION_ALPHA = 0.9
+HOLIDAY_FUSION_ALPHA_BY_TYPE = {
+    1: 1.0,  # 元旦
+    2: 1.0,  # 春节默认交给分段策略覆盖
+    3: 1.0,  # 清明
+    4: 0.1,  # 劳动节
+    5: 0.7,  # 端午
+    6: 0.9,  # 中秋，当前无专项评估，保留默认
+    7: 0.5,  # 国庆
+}
+SPRING_FESTIVAL_SEGMENT_ALPHA = {
+    "early": 1.0,  # 第1-3天
+    "mid": 0.0,    # 第4-5天
+    "late": 1.0,   # 第6天及以后
+}
 
 
 # ==================== 节假日检测函数 ====================
@@ -201,6 +216,24 @@ def get_holiday_summary(holidays: List[Dict]) -> str:
                 summaries.append(f"{h_type} ({formatted}, 共{day_count}天)")
     
     return "、".join(summaries)
+
+
+def get_holiday_fusion_alpha(holiday_info: Optional[Dict]) -> float:
+    """按节日类型返回融合权重，春节按假期第几天单独处理。"""
+    if not holiday_info:
+        return DEFAULT_HOLIDAY_FUSION_ALPHA
+
+    holiday_type_id = int(holiday_info.get("type_id", 0) or 0)
+    which_day = int(holiday_info.get("which_day", 0) or 0)
+
+    if holiday_type_id == 2:
+        if which_day <= 3:
+            return SPRING_FESTIVAL_SEGMENT_ALPHA["early"]
+        if which_day <= 5:
+            return SPRING_FESTIVAL_SEGMENT_ALPHA["mid"]
+        return SPRING_FESTIVAL_SEGMENT_ALPHA["late"]
+
+    return HOLIDAY_FUSION_ALPHA_BY_TYPE.get(holiday_type_id, DEFAULT_HOLIDAY_FUSION_ALPHA)
 
 
 def get_model_versions(model_dir, prefix=""):
@@ -401,8 +434,8 @@ def render_holiday_comparison(
         border-radius: 0 8px 8px 0;
     ">
         <p style="margin: 0; color: #d0d7e8; font-size: 0.9rem;">
-            💡 <strong style="color: #ffaa00;">建议</strong>：节假日客流预测推荐参考<strong>人工算法</strong>结果，
-            该方法基于历年同期增长率，可解释性更强，专家可验证。
+            💡 <strong style="color: #ffaa00;">建议</strong>：节假日客流预测优先参考<strong>动态融合结果</strong>，
+            当前已按节日类型分配权重，并对春节中段单独切换到专家系统。
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -442,9 +475,34 @@ def render_holiday_comparison(
         date_str = pred.get("预测日期", pred.get("date", ""))
         flow = pred.get("预测客流", pred.get("predicted_flow", 0))
         expert_by_line[line_name][date_str] = flow
-    
+
+    holiday_context_by_date = {str(item["date"]): item for item in holidays}
+    fusion_by_line = {}
+    all_line_names = set(knn_results.keys()) | set(expert_by_line.keys())
+    for line_name in all_line_names:
+        fusion_by_line[line_name] = {}
+        line_knn = knn_results.get(line_name, {})
+        line_expert = expert_by_line.get(line_name, {})
+        all_dates = set(line_knn.keys()) | set(line_expert.keys())
+
+        for date_str in all_dates:
+            knn_flow = line_knn.get(date_str)
+            expert_flow = line_expert.get(date_str)
+            holiday_info = holiday_context_by_date.get(date_str)
+            fusion_alpha = get_holiday_fusion_alpha(holiday_info)
+
+            if knn_flow is not None and expert_flow is not None:
+                fusion_flow = int(fusion_alpha * knn_flow + (1 - fusion_alpha) * expert_flow)
+            else:
+                fusion_flow = knn_flow if knn_flow is not None else expert_flow
+
+            fusion_by_line[line_name][date_str] = {
+                "flow": int(fusion_flow) if fusion_flow else 0,
+                "alpha": fusion_alpha,
+            }
+
     # 创建对比展示
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     
     with col1:
         st.markdown("""
@@ -526,6 +584,42 @@ def render_holiday_comparison(
                 st.dataframe(df_expert.head(20), use_container_width=True, hide_index=True)
         else:
             st.info("暂无人工算法预测数据")
+
+    with col3:
+        st.markdown("""
+        <div style="
+            background: rgba(96, 165, 250, 0.08);
+            border: 1px solid rgba(96, 165, 250, 0.3);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+        ">
+            <h4 style="margin: 0; color: #60a5fa; font-size: 1rem;">
+                🧩 动态融合预测（按节日类型自动分配权重）
+            </h4>
+        </div>
+        """, unsafe_allow_html=True)
+
+        fusion_data = []
+        for line_name, line_data in fusion_by_line.items():
+            for date_str, fusion_info in line_data.items():
+                fusion_data.append({
+                    "线路": line_name,
+                    "日期": date_str,
+                    "预测客流": int(fusion_info.get("flow", 0)),
+                    "ML权重": f"{fusion_info.get('alpha', DEFAULT_HOLIDAY_FUSION_ALPHA) * 100:.0f}%",
+                })
+
+        if fusion_data:
+            df_fusion = pd.DataFrame(fusion_data)
+            holiday_dates = [h['date'] for h in holidays]
+            df_fusion_holiday = df_fusion[df_fusion['日期'].isin(holiday_dates)]
+            if not df_fusion_holiday.empty:
+                st.dataframe(df_fusion_holiday, use_container_width=True, hide_index=True)
+            else:
+                st.dataframe(df_fusion.head(20), use_container_width=True, hide_index=True)
+        else:
+            st.info("暂无融合预测数据")
     
     # 显示准确率对比（如果有历史数据）
     # 检查predictions中是否有准确率数据
@@ -534,7 +628,7 @@ def render_holiday_comparison(
     if has_actual:
         st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
         
-        with st.expander("📊 准确率对比：人工算法 vs KNN机器学习", expanded=True):
+        with st.expander("📊 准确率对比：人工算法 vs KNN机器学习 vs 融合预测", expanded=True):
             # 收集有实际数据的预测记录（仅统计KNN结果中存在的线路，即应用线路过滤）
             accuracy_data = []
             
@@ -565,7 +659,18 @@ def render_holiday_comparison(
                         if actual_flow and actual_flow > 0 and knn_pred:
                             knn_accuracy = (1 - abs(knn_pred - actual_flow) / actual_flow) * 100
                             knn_accuracy = max(0, min(100, knn_accuracy))
-                    
+
+                    fusion_info = fusion_by_line.get(matched_knn_key, {}).get(date_str)
+                    if not fusion_info:
+                        fusion_info = fusion_by_line.get(line_name, {}).get(date_str, {})
+                    fusion_pred = int(fusion_info.get("flow", 0)) if fusion_info else 0
+                    fusion_alpha = fusion_info.get("alpha", DEFAULT_HOLIDAY_FUSION_ALPHA) if fusion_info else DEFAULT_HOLIDAY_FUSION_ALPHA
+
+                    fusion_accuracy = 0
+                    if actual_flow and actual_flow > 0 and fusion_pred:
+                        fusion_accuracy = (1 - abs(fusion_pred - actual_flow) / actual_flow) * 100
+                        fusion_accuracy = max(0, min(100, fusion_accuracy))
+
                     accuracy_data.append({
                         "线路": line_name,
                         "日期": date_str,
@@ -573,7 +678,10 @@ def render_holiday_comparison(
                         "KNN预测": int(knn_pred) if knn_pred else 0,
                         "KNN准确率%": f"{knn_accuracy:.1f}",
                         "人工预测": int(expert_pred) if expert_pred else 0,
-                        "人工准确率%": f"{expert_accuracy:.1f}" if expert_accuracy else "0.0"
+                        "人工准确率%": f"{expert_accuracy:.1f}" if expert_accuracy else "0.0",
+                        "融合预测": int(fusion_pred) if fusion_pred else 0,
+                        "融合准确率%": f"{fusion_accuracy:.1f}",
+                        "融合ML权重": f"{fusion_alpha * 100:.0f}%"
                     })
             
             if accuracy_data:
@@ -589,11 +697,19 @@ def render_holiday_comparison(
                 # 计算平均准确率
                 avg_knn_accuracy = sum(float(a["KNN准确率%"]) for a in accuracy_data) / len(accuracy_data)
                 avg_expert_accuracy = sum(float(a["人工准确率%"]) for a in accuracy_data) / len(accuracy_data)
-                
-                # 判断哪个更好
-                winner = "人工算法" if avg_expert_accuracy > avg_knn_accuracy else "KNN机器学习"
-                winner_color = "#ffaa00" if avg_expert_accuracy > avg_knn_accuracy else "#00ffd5"
-                diff = abs(avg_expert_accuracy - avg_knn_accuracy)
+                avg_fusion_accuracy = sum(float(a["融合准确率%"]) for a in accuracy_data) / len(accuracy_data)
+
+                avg_metrics = {
+                    "KNN机器学习": avg_knn_accuracy,
+                    "人工算法": avg_expert_accuracy,
+                    "融合预测": avg_fusion_accuracy,
+                }
+                winner = max(avg_metrics, key=avg_metrics.get)
+                winner_color = {
+                    "KNN机器学习": "#00ffd5",
+                    "人工算法": "#ffaa00",
+                    "融合预测": "#60a5fa",
+                }[winner]
                 
                 st.markdown(f"""
                 <div style="
@@ -609,8 +725,8 @@ def render_holiday_comparison(
                         <div style="color: #00ffd5; font-size: 1.5rem; font-weight: 700;">{avg_knn_accuracy:.1f}%</div>
                     </div>
                     <div style="text-align: center; border-left: 1px solid rgba(255,255,255,0.1); border-right: 1px solid rgba(255,255,255,0.1); padding: 0 1.5rem;">
-                        <div style="color: #a0a8c0; font-size: 0.85rem;">差异</div>
-                        <div style="color: {winner_color}; font-size: 1.2rem; font-weight: 600;">±{diff:.1f}%</div>
+                        <div style="color: #a0a8c0; font-size: 0.85rem;">融合预测</div>
+                        <div style="color: #60a5fa; font-size: 1.5rem; font-weight: 700;">{avg_fusion_accuracy:.1f}%</div>
                     </div>
                     <div style="text-align: center;">
                         <div style="color: #a0a8c0; font-size: 0.85rem;">人工算法</div>
