@@ -143,6 +143,40 @@ def to_bool(val: Any, default: bool = False) -> bool:
     return default
 
 
+def parse_temperature_value(val: Any) -> Optional[float]:
+    """
+    从气温字符串中提取数值并返回平均气温。
+
+    支持示例:
+        - "22℃/29℃" -> 25.5
+        - "-2℃~5℃" -> 1.5
+        - "28℃" -> 28.0
+
+    参数:
+        val: 原始气温值
+
+    返回:
+        平均气温，解析失败返回 None
+    """
+    if val is None:
+        return None
+    if isinstance(val, (int, float, np.integer, np.floating)):
+        if pd.isna(val) or np.isinf(val):
+            return None
+        return float(val)
+
+    text = str(val).strip()
+    if not text or text.lower() == "nan":
+        return None
+
+    numbers = re.findall(r"-?\d+(?:\.\d+)?", text)
+    if not numbers:
+        return None
+
+    values = [float(num) for num in numbers]
+    return float(sum(values) / len(values))
+
+
 # =============================================================================
 # 日期处理函数
 # =============================================================================

@@ -342,14 +342,15 @@ def read_station_daily_flow_history(metric_type: str) -> pd.DataFrame:
             MIN(CC.F_HOLIDAYWHICHDAY) AS F_HOLIDAYWHICHDAY,
             MIN(CC.COVID19) AS COVID19,
             MIN(CC.F_WEATHER) AS F_WEATHER,
-            MIN(W.F_TQQK) AS WEATHER_TYPE
+            MIN(W.F_TQQK) AS WEATHER_TYPE,
+            MIN(W.F_QW) AS TEMPERATURE_RAW
         FROM 
             [StationFlowPredict].[dbo].[STATION_FLOW_HISTORY] AS S
         LEFT JOIN 
             master.dbo.CalendarHistory AS CC
             ON REPLACE(S.SQUAD_DATE, '-', '') = CC.F_DATE
         LEFT JOIN
-            master.dbo.WeatherFuture AS W
+            master.dbo.WeatherHistory AS W
             ON REPLACE(S.SQUAD_DATE, '-', '') = W.F_DATE
         WHERE 
             REPLACE(S.SQUAD_DATE, '-', '') >= '{QUERY_START_DATE}'
@@ -371,7 +372,7 @@ def read_station_daily_flow_history(metric_type: str) -> pd.DataFrame:
         sum_fields = ['F_KLCOUNT']
         first_fields = [
             'F_LINENO', 'F_LINENAME', 'F_WEEK', 'F_HOLIDAYTYPE',
-            'F_HOLIDAYDAYS', 'WEATHER_TYPE', 'F_YEAR', 'F_DAYOFWEEK', 'F_HOLIDAYWHICHDAY', 'COVID19', 'F_WEATHER'
+            'F_HOLIDAYDAYS', 'WEATHER_TYPE', 'TEMPERATURE_RAW', 'F_YEAR', 'F_DAYOFWEEK', 'F_HOLIDAYWHICHDAY', 'COVID19', 'F_WEATHER'
         ]
         grouped = df.groupby(['F_DATE', 'F_LINENAME'], as_index=False).agg(
             {**{f: 'sum' for f in sum_fields},
@@ -855,6 +856,7 @@ def fetch_holiday_features(predict_start_date: str = None, days: int = None) -> 
         SELECT 
             CC.F_DATE,
             W.F_TQQK AS WEATHER_TYPE,
+            W.F_QW AS TEMPERATURE_RAW,
             CC.F_YEAR,
             CC.F_DAYOFWEEK,
             CC.F_WEEK, 
@@ -986,14 +988,15 @@ def read_line_daily_flow_history(metric_type: str) -> pd.DataFrame:
             CC.F_HOLIDAYWHICHDAY,
             CC.COVID19,
             CC.F_WEATHER,
-            W.F_TQQK AS WEATHER_TYPE
+            W.F_TQQK AS WEATHER_TYPE,
+            W.F_QW AS TEMPERATURE_RAW
         FROM 
             dbo.LineDailyFlowHistory AS L
         LEFT JOIN 
             dbo.CalendarHistory AS CC
             ON L.F_DATE = CC.F_DATE
         LEFT JOIN
-            dbo.WeatherFuture AS W
+            dbo.WeatherHistory AS W
             ON L.F_DATE = W.F_DATE
         WHERE 
             L.CREATOR = 'chency' AND L.F_DATE >= {QUERY_START_DATE}

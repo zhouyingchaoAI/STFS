@@ -24,12 +24,15 @@ from db_utils import (
 from enknn_model import KNNFlowPredictor
 from config_utils import get_version_dir, get_current_version, filter_lines_by_config
 from plot_utils import plot_daily_predictions
-from weather_enum import WeatherType
-from holiday_predict_utils import predict_line_flow as expert_predict_line_flow
+from weather_enum import WeatherType, get_weather_severity
+from holiday_predict_utils import (
+    predict_line_flow as expert_predict_line_flow,
+    predict_station_flow as expert_predict_station_flow,
+)
 from common_utils import (
     to_int, safe_get, safe_get_int,
     normalize_line_no, validate_required_columns,
-    generate_remarks_hash
+    generate_remarks_hash, parse_temperature_value
 )
 from logger_config import get_predict_logger
 
@@ -50,7 +53,8 @@ REQUIRED_FACTOR_COLUMNS = {
 FACTOR_COLUMNS = [
     'F_DATE', 'F_YEAR', 'F_WEEK', 'F_HOLIDAYTYPE', 'F_HOLIDAYDAYS',
     'F_HOLIDAYWHICHDAY', 'F_DAYOFWEEK', 'F_LINENO', 'F_LINENAME',
-    'F_KLCOUNT', 'F_WEATHER', 'WEATHER_TYPE'
+    'F_KLCOUNT', 'F_WEATHER', 'WEATHER_TYPE', 'WEATHER_SEVERITY',
+    'TEMPERATURE_AVG'
 ]
 
 DEFAULT_HOLIDAY_FUSION_ALPHA = 0.9
@@ -74,7 +78,10 @@ SPRING_FESTIVAL_SEGMENT_ALPHA = {
 # 数据预处理函数
 # =============================================================================
 
-def preprocess_daily_data(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, str]]:
+def preprocess_daily_data(
+    df: pd.DataFrame,
+    use_enhanced_weather: bool = True
+) -> Tuple[pd.DataFrame, Dict[str, str]]:
     """
     预处理日客流数据
     
@@ -96,9 +103,20 @@ def preprocess_daily_data(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, str
     df['F_LINENO'] = df['F_LINENO'].astype(str).str.zfill(2)
     
     # 处理天气类型
-    df['WEATHER_TYPE'] = df['WEATHER_TYPE'].apply(
-        lambda x: WeatherType.get_weather_by_name(str(x)).value
-    )
+    if use_enhanced_weather:
+        df['WEATHER_TYPE'] = df['WEATHER_TYPE'].apply(
+            lambda x: WeatherType.get_weather_by_name(str(x)).value
+        )
+        df['WEATHER_SEVERITY'] = df['WEATHER_TYPE'].apply(get_weather_severity)
+    else:
+        df['WEATHER_TYPE'] = df['WEATHER_TYPE'].apply(
+            lambda x: WeatherType.get_weather_by_name_legacy(str(x)).value
+        )
+
+    if 'TEMPERATURE_AVG' not in df.columns:
+        raw_temp_col = next((col for col in ['TEMPERATURE_RAW', 'F_QW'] if col in df.columns), None)
+        if raw_temp_col is not None:
+            df['TEMPERATURE_AVG'] = df[raw_temp_col].apply(parse_temperature_value)
     
     # 只保留需要的列
     available_cols = [col for col in FACTOR_COLUMNS if col in df.columns]
@@ -313,13 +331,22 @@ def predict_and_plot_timeseries_flow_daily(
         预测结果字典
     """
     logger.info(f"开始日客流预测 - 类型: {flow_type}, 指标: {metric_type}, 日期: {predict_start_date}")
+
+    use_enhanced_weather = flow_type != 'chezhan'
+    effective_config = dict(config or {})
+    if not use_enhanced_weather:
+        effective_config["factors"] = [
+            'F_WEEK', 'F_HOLIDAYTYPE', 'F_HOLIDAYDAYS',
+            'F_HOLIDAYWHICHDAY', 'F_DAYOFWEEK', 'WEATHER_TYPE',
+            'TEMPERATURE_AVG', 'F_YEAR'
+        ]
     
     # 1. 版本号和模型目录管理
-    version = model_version or get_current_version(config_obj=config, config_path="model_config_daily.yaml")
+    version = model_version or get_current_version(config_obj=effective_config, config_path="model_config_daily.yaml")
     model_dir = model_save_dir or get_version_dir(version, config_obj=config)
     
     # 2. 初始化预测器
-    predictor = KNNFlowPredictor(model_dir, version, config or {})
+    predictor = KNNFlowPredictor(model_dir, version, effective_config)
     
     # 3. 读取数据
     try:
@@ -336,7 +363,7 @@ def predict_and_plot_timeseries_flow_daily(
     
     # 4. 数据预处理
     try:
-        df, line_name_map = preprocess_daily_data(df)
+        df, line_name_map = preprocess_daily_data(df, use_enhanced_weather=use_enhanced_weather)
     except ValueError as e:
         return {"error": str(e)}
     
@@ -382,7 +409,7 @@ def predict_and_plot_timeseries_flow_daily(
         if mode in ['all', 'predict']:
             result = _predict_line(
                 predictor, line_data, line, line_name, algorithm,
-                predict_start_date, days, version, df
+                predict_start_date, days, version, df, use_enhanced_weather
             )
             
             if result.get('error'):
@@ -477,14 +504,22 @@ def _predict_line(
     predict_start_date: str,
     days: int,
     version: str,
-    df: pd.DataFrame
+    df: pd.DataFrame,
+    use_enhanced_weather: bool = True,
 ) -> Dict:
     """执行单条线路预测"""
     # 获取节假日特征
     holiday_features = fetch_holiday_features(predict_start_date, days)
-    holiday_features['WEATHER_TYPE'] = holiday_features['WEATHER_TYPE'].apply(
-        lambda x: WeatherType.get_weather_by_name(str(x)).value
-    )
+    if use_enhanced_weather:
+        holiday_features['WEATHER_TYPE'] = holiday_features['WEATHER_TYPE'].apply(
+            lambda x: WeatherType.get_weather_by_name(str(x)).value
+        )
+        holiday_features['WEATHER_SEVERITY'] = holiday_features['WEATHER_TYPE'].apply(get_weather_severity)
+    else:
+        holiday_features['WEATHER_TYPE'] = holiday_features['WEATHER_TYPE'].apply(
+            lambda x: WeatherType.get_weather_by_name_legacy(str(x)).value
+        )
+    holiday_features['TEMPERATURE_AVG'] = holiday_features.get('TEMPERATURE_RAW', pd.Series([None] * len(holiday_features))).apply(parse_temperature_value)
     
     # 执行预测
     predictions, error = predictor.predict(
