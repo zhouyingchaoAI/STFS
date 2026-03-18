@@ -324,6 +324,8 @@ def plot_daily_predictions(
     predict_start_date: str,
     days: int,
     save_path: str = "timeseries_predict_daily.png",
+    expert_prediction_rows: List[Dict] = None,
+    fusion_prediction_rows: List[Dict] = None,
     flow_type: str = None, 
     metric_type: str = None,
     show_cur_hist: bool = True,
@@ -373,13 +375,33 @@ def plot_daily_predictions(
     fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(8 * ncols, 5 * nrows), squeeze=False)
     axes = axes.flatten()
 
+    expert_prediction_rows = expert_prediction_rows or []
+    fusion_prediction_rows = fusion_prediction_rows or []
+    expert_lookup = {}
+    for row in expert_prediction_rows:
+        if int(row.get('F_HOLIDAYTYPE', 0) or 0) <= 0:
+            continue
+        pred_date = str(row.get('F_DATE', ''))
+        pred_value = int(row.get('F_PKLCOUNT', 0) or 0)
+        expert_lookup[(str(row.get('F_LINENO', '')), pred_date)] = pred_value
+        expert_lookup[(str(row.get('F_LINENAME', '')), pred_date)] = pred_value
+
+    fusion_lookup = {}
+    for row in fusion_prediction_rows:
+        pred_date = str(row.get('F_DATE', ''))
+        pred_value = int(row.get('F_PKLCOUNT', 0) or 0)
+        fusion_lookup[(str(row.get('F_LINENO', '')), pred_date)] = pred_value
+        fusion_lookup[(str(row.get('F_LINENAME', '')), pred_date)] = pred_value
+
     # 颜色和含义
     color_map = {
         '历史当天客流': 'tab:orange',
         '预测': 'tab:blue',
+        '专家预测': 'tab:green',
+        '融合预测': 'tab:purple',
         '相对准确率百分比': 'tab:red',
-        '去年同期': 'tab:green',
-        '去年同期+偏移': 'tab:purple',
+        '去年同期': 'tab:olive',
+        '去年同期+偏移': 'tab:brown',
         '去年同期+偏移准确率': 'tab:brown'
     }
 
@@ -406,24 +428,37 @@ def plot_daily_predictions(
                 if not match.empty:
                     curr_hist_dates.append(datetime.strptime(d, '%Y%m%d'))
                     curr_hist_flows.append(match['F_KLCOUNT'].values[0])
-            # 计算准确率（预测 vs 历史当天客流）
-            abs_perc_accs = []
+            # 计算准确率（KNN/融合 vs 历史当天客流）
+            ml_abs_perc_accs = []
+            fusion_abs_perc_accs = []
             for i, d in enumerate(pred_dates_str):
                 try:
-                    pred_val = daily_flow[d]
                     if d in [dt.strftime('%Y%m%d') for dt in curr_hist_dates]:
                         idx_hist = [dt.strftime('%Y%m%d') for dt in curr_hist_dates].index(d)
                         hist_val = curr_hist_flows[idx_hist]
                         if hist_val != 0:
-                            acc = (1 - abs(hist_val - pred_val) / abs(hist_val)) * 100
-                            acc = max(0, min(acc, 100))
+                            ml_pred_val = daily_flow[d]
+                            ml_acc = (1 - abs(hist_val - ml_pred_val) / abs(hist_val)) * 100
+                            ml_acc = max(0, min(ml_acc, 100))
+
+                            fusion_pred_val = next(
+                                (fusion_lookup.get((lookup_key, d)) for lookup_key in [str(line), str(line_name)]
+                                 if fusion_lookup.get((lookup_key, d)) is not None),
+                                ml_pred_val
+                            )
+                            fusion_acc = (1 - abs(hist_val - fusion_pred_val) / abs(hist_val)) * 100
+                            fusion_acc = max(0, min(fusion_acc, 100))
                         else:
-                            acc = np.nan
+                            ml_acc = np.nan
+                            fusion_acc = np.nan
                     else:
-                        acc = np.nan
+                        ml_acc = np.nan
+                        fusion_acc = np.nan
                 except Exception:
-                    acc = np.nan
-                abs_perc_accs.append(acc)
+                    ml_acc = np.nan
+                    fusion_acc = np.nan
+                ml_abs_perc_accs.append(ml_acc)
+                fusion_abs_perc_accs.append(fusion_acc)
             # 新增：上一年同期历史客流
             last_year_dates = []
             last_year_flows = []
@@ -530,7 +565,8 @@ def plot_daily_predictions(
             pred_dates_str = []
             curr_hist_dates = []
             curr_hist_flows = []
-            abs_perc_accs = []
+            ml_abs_perc_accs = []
+            fusion_abs_perc_accs = []
             last_year_dates = []
             last_year_flows = []
             last_year_plus_offset_flows = []
@@ -542,6 +578,30 @@ def plot_daily_predictions(
             pred_dates_str = list(daily_flow.keys())
             pred_dates = [datetime.strptime(d, '%Y%m%d') for d in pred_dates_str]
         pred_flows = list(daily_flow.values())
+        holiday_expert_dates = []
+        holiday_expert_flows = []
+        holiday_fusion_dates = []
+        holiday_fusion_flows = []
+        line_lookup_keys = [str(line), str(line_name)]
+        for pred_date_str, pred_dt in zip(pred_dates_str, pred_dates):
+            expert_value = next(
+                (expert_lookup.get((lookup_key, pred_date_str)) for lookup_key in line_lookup_keys
+                 if expert_lookup.get((lookup_key, pred_date_str)) is not None),
+                None
+            )
+            if expert_value is not None:
+                holiday_expert_dates.append(pred_dt.strftime('%Y-%m-%d'))
+                holiday_expert_flows.append(expert_value)
+
+            fusion_value = next(
+                (fusion_lookup.get((lookup_key, pred_date_str)) for lookup_key in line_lookup_keys
+                 if fusion_lookup.get((lookup_key, pred_date_str)) is not None),
+                None
+            )
+            if fusion_value is not None:
+                holiday_fusion_dates.append(pred_dt.strftime('%Y-%m-%d'))
+                holiday_fusion_flows.append(fusion_value)
+
         all_dates = pred_dates
         all_labels = [dt.strftime('%Y-%m-%d') for dt in all_dates]
 
@@ -585,29 +645,69 @@ def plot_daily_predictions(
             line_handles.append(line2)
             line_labels.append(f'预测（{color_map["预测"]}）')
 
+        if holiday_expert_dates:
+            line_expert, = ax.plot(
+                holiday_expert_dates,
+                holiday_expert_flows,
+                marker='^',
+                label='专家预测',
+                color=color_map['专家预测'],
+                linewidth=2,
+                linestyle='--'
+            )
+        else:
+            line_expert = None
+        if line_expert is not None:
+            line_handles.append(line_expert)
+            line_labels.append(f'专家预测（{color_map["专家预测"]}）')
+
+        if holiday_fusion_dates:
+            line_fusion, = ax.plot(
+                holiday_fusion_dates,
+                holiday_fusion_flows,
+                marker='D',
+                label='融合预测',
+                color=color_map['融合预测'],
+                linewidth=2,
+                linestyle=':'
+            )
+        else:
+            line_fusion = None
+        if line_fusion is not None:
+            line_handles.append(line_fusion)
+            line_labels.append(f'融合预测（{color_map["融合预测"]}）')
+
         # 准确率曲线
-        has_pred_acc = show_pred_error and any([not np.isnan(e) for e in abs_perc_accs])
+        has_fusion_acc = show_pred_error and any([not np.isnan(e) for e in fusion_abs_perc_accs])
         has_offset_acc = show_last_year_offset_error and any([not np.isnan(e) for e in last_year_plus_offset_accs]) if 'last_year_plus_offset_accs' in locals() else False
 
         # 计算平均准确率
         mean_acc_text = None
-        if has_pred_acc:
-            valid_accs = [e for e in abs_perc_accs if not np.isnan(e)]
-            if len(valid_accs) > 0:
-                mean_acc = np.mean(valid_accs)
-                mean_acc_text = f"平均准确率: {mean_acc:.2f}%"
-            else:
-                mean_acc_text = None
+        ml_mean_acc = None
+        fusion_mean_acc = None
+        valid_ml_accs = [e for e in ml_abs_perc_accs if not np.isnan(e)]
+        if valid_ml_accs:
+            ml_mean_acc = float(np.mean(valid_ml_accs))
+        valid_fusion_accs = [e for e in fusion_abs_perc_accs if not np.isnan(e)]
+        if valid_fusion_accs:
+            fusion_mean_acc = float(np.mean(valid_fusion_accs))
+        if ml_mean_acc is not None or fusion_mean_acc is not None:
+            text_lines = []
+            if ml_mean_acc is not None:
+                text_lines.append(f"KNN平均准确率: {ml_mean_acc:.2f}%")
+            if fusion_mean_acc is not None:
+                text_lines.append(f"融合平均准确率: {fusion_mean_acc:.2f}%")
+            mean_acc_text = "\n".join(text_lines)
 
         lines_right = []
         labels_right = []
-        if has_pred_acc or has_offset_acc:
+        if has_fusion_acc or has_offset_acc:
             ax2 = ax.twinx()
             ax2.ticklabel_format(style='plain', axis='y')
-            if has_pred_acc:
-                line3, = ax2.plot([dt.strftime('%Y-%m-%d') for dt in pred_dates], abs_perc_accs, marker='s', linestyle='--', color=color_map['相对准确率百分比'], label='准确率(%)')
+            if has_fusion_acc:
+                line3, = ax2.plot([dt.strftime('%Y-%m-%d') for dt in pred_dates], fusion_abs_perc_accs, marker='s', linestyle='--', color=color_map['相对准确率百分比'], label='融合准确率(%)')
                 lines_right.append(line3)
-                labels_right.append(f'准确率(%)（{color_map["相对准确率百分比"]}）')
+                labels_right.append(f'融合准确率(%)（{color_map["相对准确率百分比"]}）')
                 # 在图上显示平均准确率
                 if mean_acc_text is not None:
                     # 右上角显示
@@ -630,10 +730,10 @@ def plot_daily_predictions(
             else:
                 line5 = None
             # 设置y轴标签
-            if has_pred_acc and has_offset_acc:
+            if has_fusion_acc and has_offset_acc:
                 ax2.set_ylabel("准确率(%)", fontsize=12, fontproperties=my_font if my_font is not None else None, color=color_map['相对准确率百分比'])
-            elif has_pred_acc:
-                ax2.set_ylabel("准确率(%)", fontsize=12, fontproperties=my_font if my_font is not None else None, color=color_map['相对准确率百分比'])
+            elif has_fusion_acc:
+                ax2.set_ylabel("融合准确率(%)", fontsize=12, fontproperties=my_font if my_font is not None else None, color=color_map['相对准确率百分比'])
             elif has_offset_acc:
                 ax2.set_ylabel("去年同期+偏移准确率(%)", fontsize=12, fontproperties=my_font if my_font is not None else None, color=color_map['去年同期+偏移准确率'])
             ax2.tick_params(axis='y', labelcolor=color_map['相对准确率百分比'])

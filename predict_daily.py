@@ -168,7 +168,9 @@ def build_prediction_row(
     pred_value: int,
     predict_start_date: str,
     algorithm: str,
-    factor_row: Optional[pd.Series] = None
+    factor_row: Optional[pd.Series] = None,
+    creator: str = 'knn_predict',
+    remarks_text: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     构建单条预测结果记录
@@ -201,8 +203,8 @@ def build_prediction_row(
         'F_LINENAME': line_name,
         'F_PKLCOUNT': int(pred_value),
         'CREATETIME': int(datetime.now().strftime('%Y%m%d')),
-        'CREATOR': 'knn_predict',
-        'REMARKS': generate_remarks_hash(f"KNN日预测 {algorithm}"),
+        'CREATOR': creator,
+        'REMARKS': generate_remarks_hash(remarks_text or f"{creator} {algorithm}"),
         'PREDICT_DATE': int(predict_start_date),
         'F_TYPE': 1,
         'F_WEEK': safe_get_int(factor_row, 'F_WEEK') if factor_row is not None else None,
@@ -212,26 +214,15 @@ def build_prediction_row(
     }
 
 
-def get_factor_row(
-    df: pd.DataFrame,
-    pred_date: str,
-    line_no: str
-) -> Optional[pd.Series]:
-    """
-    获取预测日期的因子数据
-    
-    参数:
-        df: 数据 DataFrame
-        pred_date: 预测日期
-        line_no: 线路编号
-        
-    返回:
-        因子数据行，如果不存在返回 None
-    """
-    factor_df = df[(df['F_DATE'] == pred_date) & (df['F_LINENO'] == line_no)]
-    if not factor_df.empty:
-        return factor_df.iloc[0]
-    return None
+def get_prediction_factor_row(factor_df: pd.DataFrame, pred_date: str) -> Optional[pd.Series]:
+    """获取预测日期的未来因子数据。"""
+    if factor_df is None or factor_df.empty:
+        return None
+
+    matched = factor_df[factor_df['F_DATE'].astype(str).str.strip() == str(pred_date).strip()]
+    if matched.empty:
+        return None
+    return matched.iloc[0]
 
 
 def get_holiday_fusion_alpha(factor_row: Optional[pd.Series]) -> float:
@@ -249,15 +240,22 @@ def get_holiday_fusion_alpha(factor_row: Optional[pd.Series]) -> float:
     return HOLIDAY_FUSION_ALPHA_BY_TYPE.get(holiday_type_id, DEFAULT_HOLIDAY_FUSION_ALPHA)
 
 
+def is_holiday_factor_row(factor_row: Optional[pd.Series]) -> bool:
+    """判断当前日期是否为节假日。"""
+    if factor_row is None:
+        return False
+    return safe_get_int(factor_row, 'F_HOLIDAYTYPE') > 0
+
+
 def build_fusion_prediction_rows(
     ml_rows: List[Dict],
     predict_start_date: str,
     days: int,
     metric_type: str,
-) -> List[Dict]:
-    """基于机器学习结果与专家系统生成融合预测入库数据。"""
+) -> Tuple[List[Dict], List[Dict]]:
+    """为线网线路构建专家系统与融合结果入库数据。"""
     if not ml_rows:
-        return []
+        return [], []
 
     expert_result = expert_predict_line_flow(metric_type, predict_start_date, (datetime.strptime(predict_start_date, '%Y%m%d') + timedelta(days=days - 1)).strftime('%Y%m%d'), history_years=2)
     expert_predictions = expert_result.get("predictions", []) if isinstance(expert_result, dict) else []
@@ -265,31 +263,99 @@ def build_fusion_prediction_rows(
     for pred in expert_predictions:
         expert_by_key[(str(pred.get("线路名称", "")), str(pred.get("预测日期", "")))] = pred
 
+    expert_rows = []
     fusion_rows = []
     for ml_row in ml_rows:
         line_name = str(ml_row.get('F_LINENAME', ''))
         pred_date = str(ml_row.get('F_DATE', ''))
         expert_row = expert_by_key.get((line_name, pred_date))
-        if not expert_row:
-            continue
 
         factor_stub = pd.Series({
             'F_HOLIDAYTYPE': ml_row.get('F_HOLIDAYTYPE'),
             'F_HOLIDAYWHICHDAY': ml_row.get('F_HOLIDAYWHICHDAY'),
         })
-        fusion_alpha = get_holiday_fusion_alpha(factor_stub)
         ml_value = int(ml_row.get('F_PKLCOUNT', 0))
-        expert_value = int(expert_row.get('预测客流', 0))
-        fused_value = int(fusion_alpha * ml_value + (1 - fusion_alpha) * expert_value)
+        use_expert_value = is_holiday_factor_row(factor_stub)
+        expert_value = int(expert_row.get('预测客流', 0)) if expert_row else ml_value
+        fused_value = expert_value if use_expert_value and expert_row else ml_value
+
+        if expert_row:
+            expert_out = dict(ml_row)
+            expert_out['ID'] = str(uuid.uuid4())
+            expert_out['F_PKLCOUNT'] = expert_value
+            expert_out['CREATOR'] = 'expert_predict'
+            expert_out['REMARKS'] = generate_remarks_hash("线网线路专家预测")
+            expert_rows.append(expert_out)
 
         fusion_row = dict(ml_row)
         fusion_row['ID'] = str(uuid.uuid4())
         fusion_row['F_PKLCOUNT'] = fused_value
         fusion_row['CREATOR'] = 'fusion_predict'
-        fusion_row['REMARKS'] = generate_remarks_hash(f"融合日预测 alpha={fusion_alpha:.1f}")
+        fusion_row['REMARKS'] = generate_remarks_hash(
+            "融合日预测: 平常日沿用KNN, 节假日切换专家系统"
+        )
         fusion_rows.append(fusion_row)
 
-    return fusion_rows
+    return expert_rows, fusion_rows
+
+
+def build_station_holiday_prediction_rows(
+    ml_rows: List[Dict],
+    predict_start_date: str,
+    days: int,
+    metric_type: str,
+) -> Tuple[List[Dict], List[Dict]]:
+    """为车站预测构建专家系统与融合结果入库数据。"""
+    if not ml_rows:
+        return [], []
+
+    predict_end_date = (
+        datetime.strptime(predict_start_date, '%Y%m%d') + timedelta(days=days - 1)
+    ).strftime('%Y%m%d')
+    expert_result = expert_predict_station_flow(
+        metric_type,
+        predict_start_date,
+        predict_end_date,
+        history_years=2
+    )
+    expert_predictions = expert_result.get("predictions", []) if isinstance(expert_result, dict) else []
+    expert_by_key = {}
+    for pred in expert_predictions:
+        expert_by_key[(str(pred.get("车站名称", "")), str(pred.get("预测日期", "")))] = pred
+
+    expert_rows = []
+    fusion_rows = []
+    for ml_row in ml_rows:
+        station_name = str(ml_row.get('F_LINENAME', ''))
+        pred_date = str(ml_row.get('F_DATE', ''))
+        expert_row = expert_by_key.get((station_name, pred_date))
+
+        factor_stub = pd.Series({
+            'F_HOLIDAYTYPE': ml_row.get('F_HOLIDAYTYPE'),
+            'F_HOLIDAYWHICHDAY': ml_row.get('F_HOLIDAYWHICHDAY'),
+        })
+        ml_value = int(ml_row.get('F_PKLCOUNT', 0) or 0)
+        expert_value = int(expert_row.get('预测客流', 0) or 0) if expert_row else ml_value
+        fusion_value = expert_value if is_holiday_factor_row(factor_stub) and expert_row else ml_value
+
+        if expert_row:
+            expert_out = dict(ml_row)
+            expert_out['ID'] = str(uuid.uuid4())
+            expert_out['F_PKLCOUNT'] = expert_value
+            expert_out['CREATOR'] = 'expert_predict'
+            expert_out['REMARKS'] = generate_remarks_hash("车站节假日专家预测")
+            expert_rows.append(expert_out)
+
+        fusion_out = dict(ml_row)
+        fusion_out['ID'] = str(uuid.uuid4())
+        fusion_out['F_PKLCOUNT'] = fusion_value
+        fusion_out['CREATOR'] = 'fusion_predict'
+        fusion_out['REMARKS'] = generate_remarks_hash(
+            "车站融合预测: 平常日沿用KNN, 节假日切换专家系统"
+        )
+        fusion_rows.append(fusion_out)
+
+    return expert_rows, fusion_rows
 
 
 # =============================================================================
@@ -548,7 +614,7 @@ def _predict_line(
     prediction_rows = []
     for d in range(days):
         pred_date = (datetime.strptime(predict_start_date, '%Y%m%d') + timedelta(days=d)).strftime('%Y%m%d')
-        factor_row = get_factor_row(df, pred_date, line)
+        factor_row = get_prediction_factor_row(holiday_features, pred_date)
         
         row = build_prediction_row(
             line_no=line,
@@ -575,15 +641,42 @@ def _save_and_plot_results(
     metric_type: str
 ) -> None:
     """保存预测结果并绘图"""
+    expert_rows: List[Dict] = []
+    fusion_rows: List[Dict] = []
+
     # 保存到数据库
     if flow_type == 'xianwangxianlu':
         upload_xianwangxianlu_daily_prediction_sample(prediction_rows, metric_type)
-        fusion_rows = build_fusion_prediction_rows(prediction_rows, predict_start_date, days, metric_type)
+        expert_rows, fusion_rows = build_fusion_prediction_rows(
+            prediction_rows, predict_start_date, days, metric_type
+        )
+        if expert_rows:
+            upload_xianwangxianlu_daily_prediction_sample(expert_rows, metric_type)
+            logger.info(f"线网线路专家日预测已写库: {len(expert_rows)} 条, CREATOR=expert_predict")
         if fusion_rows:
             upload_xianwangxianlu_daily_prediction_sample(fusion_rows, metric_type)
             logger.info(f"融合日预测已写库: {len(fusion_rows)} 条, CREATOR=fusion_predict")
     else:
         upload_station_daily_prediction_sample(prediction_rows, metric_type)
+        expert_rows, fusion_rows = build_station_holiday_prediction_rows(
+            prediction_rows, predict_start_date, days, metric_type
+        )
+        if expert_rows:
+            upload_station_daily_prediction_sample(expert_rows, metric_type)
+            logger.info(f"车站专家日预测已写库: {len(expert_rows)} 条, CREATOR=expert_predict")
+        if fusion_rows:
+            upload_station_daily_prediction_sample(fusion_rows, metric_type)
+            logger.info(f"车站融合日预测已写库: {len(fusion_rows)} 条, CREATOR=fusion_predict")
     
     # 绘制图表
-    plot_daily_predictions(predict_result, line_name_map, predict_start_date, days, save_path, flow_type, metric_type)
+    plot_daily_predictions(
+        predict_result,
+        line_name_map,
+        predict_start_date,
+        days,
+        save_path,
+        expert_prediction_rows=expert_rows,
+        fusion_prediction_rows=fusion_rows,
+        flow_type=flow_type,
+        metric_type=metric_type
+    )

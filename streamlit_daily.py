@@ -4,6 +4,8 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
+import io
+import math
 from config_utils import load_yaml_config, save_yaml_config
 from predict_daily import predict_and_plot_timeseries_flow_daily
 import os
@@ -24,6 +26,7 @@ from db_pool import get_db_connection
 
 # 导入节假日预测工具
 from holiday_predict_utils import predict_line_flow as expert_predict_line_flow
+from predict_daily import get_holiday_fusion_alpha
 
 # ==================== 配置常量 ====================
 
@@ -236,6 +239,13 @@ def get_holiday_fusion_alpha(holiday_info: Optional[Dict]) -> float:
     return HOLIDAY_FUSION_ALPHA_BY_TYPE.get(holiday_type_id, DEFAULT_HOLIDAY_FUSION_ALPHA)
 
 
+def should_use_expert_fusion(holiday_info: Optional[Dict]) -> bool:
+    """节假日融合序列直接采用专家系统，平常日沿用 KNN。"""
+    if not holiday_info:
+        return False
+    return int(holiday_info.get("type_id", 0) or 0) > 0
+
+
 def get_model_versions(model_dir, prefix=""):
     """获取模型目录下所有模型版本（以日期为子目录）"""
     if not os.path.exists(model_dir):
@@ -375,6 +385,142 @@ def plot_daily_flow(
         plt.close(fig)
 
 
+def figure_to_png_bytes(fig) -> bytes:
+    """将 matplotlib 图对象导出为 PNG 二进制。"""
+    buffer = io.BytesIO()
+    fig.savefig(buffer, format="png", dpi=150, bbox_inches="tight")
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+def build_holiday_comparison_image(
+    knn_results: Dict,
+    expert_results: Dict,
+    holidays: List[Dict],
+    SUBWAY_GREEN: str = "#00ffd5",
+    SUBWAY_ACCENT: str = "#bf00ff",
+    SUBWAY_CARD: str = "#1e2439",
+    SUBWAY_BG: str = "#0f1423",
+    SUBWAY_FONT: str = "#ffffff",
+) -> Optional[bytes]:
+    """生成节假日三指标对比图片：机器学习、人工算法、融合、实际。"""
+    expert_predictions = expert_results.get("predictions", []) if isinstance(expert_results, dict) else []
+    if not expert_predictions:
+        return None
+
+    holiday_dates = [h["date"] for h in holidays]
+    holiday_set = set(holiday_dates)
+    if not holiday_set:
+        return None
+
+    series_by_line: Dict[str, List[Dict]] = {}
+    for pred in expert_predictions:
+        line_name = pred.get("线路名称", pred.get("F_LINENAME", pred.get("line_name", "未知")))
+        date_str = pred.get("预测日期", pred.get("date", ""))
+        if date_str not in holiday_set:
+            continue
+
+        matched_knn_key = None
+        for knn_key in knn_results.keys():
+            if knn_key == line_name or knn_key in line_name or line_name in knn_key:
+                matched_knn_key = knn_key
+                break
+
+        knn_pred = 0
+        if matched_knn_key and isinstance(knn_results.get(matched_knn_key), dict):
+            knn_pred = int(knn_results[matched_knn_key].get(date_str, 0) or 0)
+
+        expert_pred = int(pred.get("预测客流", pred.get("predicted_flow", 0)) or 0)
+        holiday_type = int(pred.get("节假日类型", 0) or 0)
+        holiday_day_index = int(pred.get("第几天", pred.get("节假日第几天", 0)) or 0)
+        holiday_info = {
+            "type_id": holiday_type,
+            "which_day": holiday_day_index,
+        }
+        fusion_pred = expert_pred if should_use_expert_fusion(holiday_info) else knn_pred
+
+        actual_flow = pred.get("实际客流")
+        actual_flow = int(actual_flow) if actual_flow is not None else None
+
+        series_by_line.setdefault(line_name, []).append({
+            "日期": date_str,
+            "机器学习": knn_pred,
+            "人工算法": expert_pred,
+            "融合预测": fusion_pred,
+            "实际客流": actual_flow,
+        })
+
+    entities = sorted(series_by_line.keys())
+    if not entities:
+        return None
+
+    setup_plot_style()
+    ncols = 2 if len(entities) > 1 else 1
+    nrows = math.ceil(len(entities) / ncols)
+    fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(9 * ncols, 5 * nrows), squeeze=False)
+    fig.patch.set_facecolor(SUBWAY_BG)
+    axes = axes.flatten()
+
+    color_map = {
+        "机器学习": SUBWAY_GREEN,
+        "人工算法": "#ffaa00",
+        "融合预测": "#60a5fa",
+        "实际客流": "#ff5c8a",
+    }
+
+    for idx, entity_name in enumerate(entities):
+        ax = axes[idx]
+        ax.set_facecolor(SUBWAY_CARD)
+        entity_df = pd.DataFrame(series_by_line[entity_name]).sort_values("日期")
+        x = list(range(len(entity_df)))
+
+        for column in ["机器学习", "人工算法", "融合预测"]:
+            ax.plot(
+                x,
+                entity_df[column].tolist(),
+                marker="o",
+                linewidth=2.2,
+                markersize=6,
+                label=column,
+                color=color_map[column],
+            )
+
+        actual_mask = entity_df["实际客流"].notna()
+        if actual_mask.any():
+            actual_x = [i for i, ok in enumerate(actual_mask.tolist()) if ok]
+            actual_y = entity_df.loc[actual_mask, "实际客流"].astype(float).tolist()
+            ax.plot(
+                actual_x,
+                actual_y,
+                marker="s",
+                linestyle="--",
+                linewidth=2,
+                markersize=6,
+                label="实际客流",
+                color=color_map["实际客流"],
+            )
+
+        ax.set_title(entity_name, color=SUBWAY_ACCENT, fontsize=13, fontweight="bold")
+        ax.set_xticks(x)
+        ax.set_xticklabels(entity_df["日期"].tolist(), rotation=45, ha="right", color=SUBWAY_FONT, fontsize=9)
+        ax.tick_params(axis="y", colors=SUBWAY_FONT, labelsize=9)
+        ax.grid(True, linestyle="--", alpha=0.18, color=SUBWAY_GREEN)
+        legend = ax.legend(facecolor=SUBWAY_CARD, edgecolor=SUBWAY_GREEN, fontsize=9)
+        plt.setp(legend.get_texts(), color=SUBWAY_FONT)
+        for spine in ax.spines.values():
+            spine.set_color(SUBWAY_GREEN)
+            spine.set_alpha(0.25)
+
+    for idx in range(len(entities), len(axes)):
+        fig.delaxes(axes[idx])
+
+    fig.suptitle("节假日预测对比图：机器学习 vs 人工算法 vs 融合 vs 实际", color=SUBWAY_FONT, fontsize=16, fontweight="bold")
+    fig.tight_layout(rect=[0, 0.02, 1, 0.95])
+    image_bytes = figure_to_png_bytes(fig)
+    plt.close(fig)
+    return image_bytes
+
+
 # ==================== 节假日对比展示组件 ====================
 
 def render_holiday_comparison(
@@ -384,6 +530,7 @@ def render_holiday_comparison(
     SUBWAY_GREEN: str = "#00ffd5",
     SUBWAY_ACCENT: str = "#bf00ff",
     SUBWAY_CARD: str = "#1e2439",
+    SUBWAY_BG: str = "#0f1423",
     SUBWAY_FONT: str = "#ffffff"
 ):
     """
@@ -434,8 +581,8 @@ def render_holiday_comparison(
         border-radius: 0 8px 8px 0;
     ">
         <p style="margin: 0; color: #d0d7e8; font-size: 0.9rem;">
-            💡 <strong style="color: #ffaa00;">建议</strong>：节假日客流预测优先参考<strong>动态融合结果</strong>，
-            当前已按节日类型分配权重，并对春节中段单独切换到专家系统。
+            💡 <strong style="color: #ffaa00;">建议</strong>：融合结果序列当前采用
+            <strong>平常日使用 KNN、节假日使用专家系统</strong> 的切换策略。
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -489,17 +636,30 @@ def render_holiday_comparison(
             knn_flow = line_knn.get(date_str)
             expert_flow = line_expert.get(date_str)
             holiday_info = holiday_context_by_date.get(date_str)
-            fusion_alpha = get_holiday_fusion_alpha(holiday_info)
 
             if knn_flow is not None and expert_flow is not None:
-                fusion_flow = int(fusion_alpha * knn_flow + (1 - fusion_alpha) * expert_flow)
+                fusion_flow = expert_flow if should_use_expert_fusion(holiday_info) else knn_flow
             else:
                 fusion_flow = knn_flow if knn_flow is not None else expert_flow
 
             fusion_by_line[line_name][date_str] = {
                 "flow": int(fusion_flow) if fusion_flow else 0,
-                "alpha": fusion_alpha,
+                "alpha": 0.0,
             }
+
+    comparison_image = build_holiday_comparison_image(
+        knn_results=knn_results,
+        expert_results=expert_results,
+        holidays=holidays,
+        SUBWAY_GREEN=SUBWAY_GREEN,
+        SUBWAY_ACCENT=SUBWAY_ACCENT,
+        SUBWAY_CARD=SUBWAY_CARD,
+        SUBWAY_BG=SUBWAY_BG,
+        SUBWAY_FONT=SUBWAY_FONT,
+    )
+    if comparison_image:
+        st.markdown("### 节假日预测对比图片")
+        st.image(comparison_image, caption="机器学习、人工算法、融合预测与实际客流对比图", use_container_width=True)
 
     # 创建对比展示
     col1, col2, col3 = st.columns(3)
@@ -1111,12 +1271,13 @@ def render_prediction_panel(
                 </div>
                 """, unsafe_allow_html=True)
                 
+                output_image_path = "timeseries_predict_daily.png"
                 result = predict_and_plot_timeseries_flow_daily(
                     file_path="",
                     predict_start_date=predict_start_date_str,
                     algorithm=predict_daily_algo,
                     retrain=False,
-                    save_path="timeseries_predict_daily.png",
+                    save_path=output_image_path,
                     mode="predict",
                     days=days,
                     config=config_daily,
@@ -1132,6 +1293,7 @@ def render_prediction_panel(
                 st.error(f"❌ 预测失败: {result['error']}")
             else:
                 st.success("✅ 预测完成！")
+                st.session_state["daily_prediction_image_path"] = output_image_path if os.path.exists(output_image_path) else None
                 
                 # 显示结果
                 st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
@@ -1155,7 +1317,6 @@ def render_prediction_panel(
                             line_name = LINE_NO_NAME_MAP.get(line_no, f"线路{line_no}")
                             daily_flow[line_name] = line_result.get("predict_daily_flow", {})
                     
-                    figs = []
                     plot_results = []
                     
                     print(f"[DEBUG] daily_flow重构完成, 键数量: {len(daily_flow)}, 键名: {list(daily_flow.keys())[:5]}")
@@ -1173,13 +1334,6 @@ def render_prediction_panel(
                                 "df_plot": df_plot,
                                 "predict_start_date": info.get('predict_start_date', predict_start_date_str)
                             })
-                            fig = plot_daily_flow(
-                                df_plot, line_name=line_name,
-                                SUBWAY_GREEN=SUBWAY_GREEN, SUBWAY_ACCENT=SUBWAY_ACCENT,
-                                SUBWAY_CARD=SUBWAY_CARD, SUBWAY_BG=SUBWAY_BG,
-                                SUBWAY_FONT=SUBWAY_FONT, return_fig=True
-                            )
-                            figs.append((fig, line_name))
                     else:
                         dates = sorted(daily_flow.keys())
                         flows = [daily_flow.get(date, 0) or 0 for date in dates]
@@ -1192,16 +1346,9 @@ def render_prediction_panel(
                             "df_plot": df_plot,
                             "predict_start_date": info.get('predict_start_date', predict_start_date_str)
                         })
-                        fig = plot_daily_flow(
-                            df_plot,
-                            SUBWAY_GREEN=SUBWAY_GREEN, SUBWAY_ACCENT=SUBWAY_ACCENT,
-                            SUBWAY_CARD=SUBWAY_CARD, SUBWAY_BG=SUBWAY_BG,
-                            SUBWAY_FONT=SUBWAY_FONT, return_fig=True
-                        )
-                        figs.append((fig, None))
                     
                     st.session_state["daily_plot_results"] = plot_results
-                    st.session_state["daily_plot_figs"] = figs
+                    st.session_state["daily_plot_figs"] = None
                     
                     # ========== 节假日检测和人工算法对比 ==========
                     # 计算预测日期范围
@@ -1268,7 +1415,7 @@ def daily_tab(SUBWAY_GREEN, SUBWAY_ACCENT, SUBWAY_CARD, SUBWAY_FONT, SUBWAY_BG, 
     
     # 初始化session state
     st.session_state.setdefault("daily_plot_results", None)
-    st.session_state.setdefault("daily_plot_figs", None)
+    st.session_state.setdefault("daily_prediction_image_path", None)
     
     # 双栏布局
     col_train, col_pred = st.columns([1, 1.1], gap="large")
@@ -1285,35 +1432,15 @@ def daily_tab(SUBWAY_GREEN, SUBWAY_ACCENT, SUBWAY_CARD, SUBWAY_FONT, SUBWAY_BG, 
             flow_type, metric_type, config_daily
         )
     
-    # 显示图表结果
-    print(f"[DEBUG] daily_tab: 检查 daily_plot_figs = {st.session_state.get('daily_plot_figs') is not None}")
     print(f"[DEBUG] daily_tab: 检查 daily_holidays = {st.session_state.get('daily_holidays') is not None}")
-    
-    if st.session_state.get("daily_plot_figs"):
+
+    image_path = st.session_state.get("daily_prediction_image_path")
+    if image_path and os.path.exists(image_path):
         st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
         st.markdown("---")
-        
-        for idx, (fig, line_name) in enumerate(st.session_state["daily_plot_figs"]):
-            if line_name:
-                st.markdown(f"""
-                <div style="
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 0.5rem;
-                    background: rgba(191, 0, 255, 0.1);
-                    border: 1px solid rgba(191, 0, 255, 0.3);
-                    border-radius: 20px;
-                    padding: 0.4rem 1rem;
-                    margin-bottom: 1rem;
-                ">
-                    <span style="font-size: 1rem;">🚇</span>
-                    <span style="color: #bf00ff; font-weight: 600;">{line_name}</span>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            st.pyplot(fig)
-            plt.close(fig)
-    
+        st.markdown("### 预测结果图片")
+        st.image(image_path, caption="预测曲线图片", use_container_width=True)
+
     # ========== 节假日对比展示（移到外部，不依赖于daily_plot_figs） ==========
     holidays = st.session_state.get("daily_holidays")
     print(f"[DEBUG] daily_tab: 节假日数据 = {len(holidays) if holidays else 'None'}")
@@ -1359,11 +1486,9 @@ def daily_tab(SUBWAY_GREEN, SUBWAY_ACCENT, SUBWAY_CARD, SUBWAY_FONT, SUBWAY_BG, 
                 SUBWAY_GREEN=SUBWAY_GREEN,
                 SUBWAY_ACCENT=SUBWAY_ACCENT,
                 SUBWAY_CARD=SUBWAY_CARD,
+                SUBWAY_BG=SUBWAY_BG,
                 SUBWAY_FONT=SUBWAY_FONT
             )
         else:
             st.warning("⚠️ 人工算法结果为空，无法显示对比界面")
     
-    # 兼容旧图片显示
-    if os.path.exists("timeseries_predict_daily.png"):
-        st.image("timeseries_predict_daily.png", caption="日预测结果可视化")
