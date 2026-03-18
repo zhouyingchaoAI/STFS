@@ -238,7 +238,7 @@ def _parse_table_structures(content: str) -> str:
 3. 线路名格式：
    - 历史表：f_linename (varchar), 示例: '1号线'（使用 N'1号线' 或直接字符串）
    - 预测表：F_LINENAME (nvarchar), 示例: '5号线'（使用 N'5号线' 或直接字符串）
-   - 车站名：STATION_NAME (varchar/nvarchar), 示例: '星沙', '长沙火车南站'（使用 N'xxx' 格式）
+   - 车站名：STATION_NAME (varchar/nvarchar), 示例: '星沙', '某某火车南站'（使用 N'xxx' 格式）
 
 4. 小时格式：
    - LineHourlyFlowHistory.f_hour: int, 示例: 0（0-23）

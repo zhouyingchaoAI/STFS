@@ -112,12 +112,12 @@
 袁家岭:
 - LINE_ID: '02      '
   STATION_ID: '10      '
-长沙火车站:
+某某火车站:
 - LINE_ID: '02      '
   STATION_ID: '11      '
 - LINE_ID: '03      '
   STATION_ID: '13      '
-锦泰广场/城际长沙站:
+锦泰广场/城际某某站:
 - LINE_ID: '02      '
   STATION_ID: '12      '
 万家丽广场:
@@ -130,7 +130,7 @@
   STATION_ID: '14      '
 - LINE_ID: '06      '
   STATION_ID: '22      '
-长沙大道:
+某某大道:
 - LINE_ID: '02      '
   STATION_ID: '15      '
 沙湾公园:
@@ -141,7 +141,7 @@
 杜花路:
 - LINE_ID: '02      '
   STATION_ID: '17      '
-长沙火车南站:
+某某火车南站:
 - LINE_ID: '02      '
   STATION_ID: '18      '
 - LINE_ID: '04      '
@@ -214,7 +214,7 @@
 雅雀湖:
 - LINE_ID: '03      '
   STATION_ID: '17      '
-长沙大学:
+某某大学:
 - LINE_ID: '03      '
   STATION_ID: '18      '
 月湖公园北/湖南广电:

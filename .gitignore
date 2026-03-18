@@ -32,6 +32,13 @@ env/
 *.swo
 *~
 
+# Secrets
+.git-credentials
+
+# Frontend dependencies
+node_modules/
+script/MQA/frontend/node_modules/
+
 # Jupyter Notebook
 .ipynb_checkpoints
 
@@ -98,4 +105,3 @@ coverage.xml
 
 # Documentation
 docs/_build/
-

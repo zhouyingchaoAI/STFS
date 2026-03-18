@@ -1,5 +1,5 @@
 """
-绘制近三年长沙线网、1-6号线、西环线每日客流曲线及年增长率
+绘制近三年某某线网、1-6号线、西环线每日客流曲线及年增长率
 每条线路一个子图，可视化其每日客流趋势及年度增长情况
 """
 
@@ -356,10 +356,10 @@ try:
     for i in range(len(line_order), len(axes)):
         axes[i].axis('off')
 
-    plt.suptitle("长沙线网及各线路近三年每日客流曲线与年增长率", fontsize=18, fontproperties=my_font)
+    plt.suptitle("某某线网及各线路近三年每日客流曲线与年增长率", fontsize=18, fontproperties=my_font)
     plt.tight_layout(rect=[0,0,1,0.97])
 
-    output_path = "长沙地铁线网分线路每日客流曲线三年增长.png"
+    output_path = "某某地铁线网分线路每日客流曲线三年增长.png"
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
     print(f"\n✓ 全线路每日客流曲线图已保存至: {os.path.abspath(output_path)}")
     plt.close()
