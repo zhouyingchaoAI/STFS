@@ -26,6 +26,7 @@ from config_utils import get_version_dir, get_current_version, filter_lines_by_c
 from plot_utils import plot_daily_predictions
 from weather_enum import WeatherType, get_weather_severity
 from holiday_predict_utils import (
+    LEGAL_HOLIDAY_TYPES,
     predict_line_flow as expert_predict_line_flow,
     predict_station_flow as expert_predict_station_flow,
 )
@@ -241,10 +242,67 @@ def get_holiday_fusion_alpha(factor_row: Optional[pd.Series]) -> float:
 
 
 def is_holiday_factor_row(factor_row: Optional[pd.Series]) -> bool:
-    """判断当前日期是否为节假日。"""
+    """仅法定节假日切换专家系统，周末/调休仍沿用机器学习。"""
     if factor_row is None:
         return False
-    return safe_get_int(factor_row, 'F_HOLIDAYTYPE') > 0
+    holiday_type_id = safe_get_int(factor_row, 'F_HOLIDAYTYPE') or 0
+    holiday_days = safe_get_int(factor_row, 'F_HOLIDAYDAYS') or 0
+    which_day = safe_get_int(factor_row, 'F_HOLIDAYWHICHDAY') or 0
+    return (
+        holiday_type_id in LEGAL_HOLIDAY_TYPES
+        and holiday_days > 0
+        and 1 <= which_day <= holiday_days
+    )
+
+
+def build_expert_switch_dates(prediction_rows: List[Dict], pre_days: int = 1, post_days: int = 0) -> set[str]:
+    """法定节假日当天及节前指定天数切换专家系统。"""
+    holiday_dates = []
+    for row in prediction_rows:
+        factor_stub = pd.Series({
+            'F_HOLIDAYTYPE': row.get('F_HOLIDAYTYPE'),
+            'F_HOLIDAYDAYS': row.get('F_HOLIDAYDAYS'),
+            'F_HOLIDAYWHICHDAY': row.get('F_HOLIDAYWHICHDAY'),
+        })
+        date_str = str(row.get('F_DATE', '')).strip()
+        if date_str and is_holiday_factor_row(factor_stub):
+            holiday_dates.append(date_str)
+
+    if not holiday_dates:
+        return set()
+
+    switch_dates = set(holiday_dates)
+    sorted_dates = sorted(set(holiday_dates))
+    blocks = []
+    current_block = []
+    for date_str in sorted_dates:
+        current_dt = datetime.strptime(date_str, '%Y%m%d')
+        if current_block:
+            prev_dt = datetime.strptime(current_block[-1], '%Y%m%d')
+            if current_dt == prev_dt + timedelta(days=1):
+                current_block.append(date_str)
+            else:
+                blocks.append(current_block)
+                current_block = [date_str]
+        else:
+            current_block = [date_str]
+    if current_block:
+        blocks.append(current_block)
+
+    available_dates = {str(row.get('F_DATE', '')).strip() for row in prediction_rows}
+    for block in blocks:
+        start_dt = datetime.strptime(block[0], '%Y%m%d')
+        end_dt = datetime.strptime(block[-1], '%Y%m%d')
+        for offset in range(1, pre_days + 1):
+            start_str = (start_dt - timedelta(days=offset)).strftime('%Y%m%d')
+            if start_str in available_dates:
+                switch_dates.add(start_str)
+        for offset in range(1, post_days + 1):
+            end_str = (end_dt + timedelta(days=offset)).strftime('%Y%m%d')
+            if end_str in available_dates:
+                switch_dates.add(end_str)
+
+    return switch_dates
 
 
 def build_fusion_prediction_rows(
@@ -261,21 +319,33 @@ def build_fusion_prediction_rows(
     expert_predictions = expert_result.get("predictions", []) if isinstance(expert_result, dict) else []
     expert_by_key = {}
     for pred in expert_predictions:
-        expert_by_key[(str(pred.get("线路名称", "")), str(pred.get("预测日期", "")))] = pred
+        line_no = normalize_line_no(pred.get("线路编号"))
+        pred_date = str(pred.get("预测日期", "")).strip()
+        line_name = str(pred.get("线路名称", "")).strip()
+        if line_no:
+            expert_by_key[(line_no, pred_date)] = pred
+        if line_name:
+            expert_by_key[(line_name, pred_date)] = pred
 
+    if not expert_predictions:
+        logger.warning("线网线路专家预测结果为空，专家预测数据将不会写库")
+
+    expert_switch_dates = build_expert_switch_dates(ml_rows, pre_days=3, post_days=0)
     expert_rows = []
     fusion_rows = []
     for ml_row in ml_rows:
-        line_name = str(ml_row.get('F_LINENAME', ''))
-        pred_date = str(ml_row.get('F_DATE', ''))
-        expert_row = expert_by_key.get((line_name, pred_date))
+        line_no = normalize_line_no(ml_row.get('F_LINENO'))
+        line_name = str(ml_row.get('F_LINENAME', '')).strip()
+        pred_date = str(ml_row.get('F_DATE', '')).strip()
+        expert_row = expert_by_key.get((line_no, pred_date)) or expert_by_key.get((line_name, pred_date))
 
         factor_stub = pd.Series({
             'F_HOLIDAYTYPE': ml_row.get('F_HOLIDAYTYPE'),
+            'F_HOLIDAYDAYS': ml_row.get('F_HOLIDAYDAYS'),
             'F_HOLIDAYWHICHDAY': ml_row.get('F_HOLIDAYWHICHDAY'),
         })
         ml_value = int(ml_row.get('F_PKLCOUNT', 0))
-        use_expert_value = is_holiday_factor_row(factor_stub)
+        use_expert_value = pred_date in expert_switch_dates
         expert_value = int(expert_row.get('预测客流', 0)) if expert_row else ml_value
         fused_value = expert_value if use_expert_value and expert_row else ml_value
 
@@ -292,7 +362,7 @@ def build_fusion_prediction_rows(
         fusion_row['F_PKLCOUNT'] = fused_value
         fusion_row['CREATOR'] = 'fusion_predict'
         fusion_row['REMARKS'] = generate_remarks_hash(
-            "融合日预测: 平常日沿用KNN, 节假日切换专家系统"
+            "融合日预测: 平常日沿用KNN, 节假日及节前3天切换专家系统"
         )
         fusion_rows.append(fusion_row)
 
@@ -321,22 +391,30 @@ def build_station_holiday_prediction_rows(
     expert_predictions = expert_result.get("predictions", []) if isinstance(expert_result, dict) else []
     expert_by_key = {}
     for pred in expert_predictions:
-        expert_by_key[(str(pred.get("车站名称", "")), str(pred.get("预测日期", "")))] = pred
+        station_name = str(pred.get("车站名称", "")).strip()
+        pred_date = str(pred.get("预测日期", "")).strip()
+        if station_name:
+            expert_by_key[(station_name, pred_date)] = pred
 
+    if not expert_predictions:
+        logger.warning("车站专家预测结果为空，专家预测数据将不会写库")
+
+    expert_switch_dates = build_expert_switch_dates(ml_rows, pre_days=2, post_days=0)
     expert_rows = []
     fusion_rows = []
     for ml_row in ml_rows:
-        station_name = str(ml_row.get('F_LINENAME', ''))
-        pred_date = str(ml_row.get('F_DATE', ''))
+        station_name = str(ml_row.get('F_LINENAME', '')).strip()
+        pred_date = str(ml_row.get('F_DATE', '')).strip()
         expert_row = expert_by_key.get((station_name, pred_date))
 
         factor_stub = pd.Series({
             'F_HOLIDAYTYPE': ml_row.get('F_HOLIDAYTYPE'),
+            'F_HOLIDAYDAYS': ml_row.get('F_HOLIDAYDAYS'),
             'F_HOLIDAYWHICHDAY': ml_row.get('F_HOLIDAYWHICHDAY'),
         })
         ml_value = int(ml_row.get('F_PKLCOUNT', 0) or 0)
         expert_value = int(expert_row.get('预测客流', 0) or 0) if expert_row else ml_value
-        fusion_value = expert_value if is_holiday_factor_row(factor_stub) and expert_row else ml_value
+        fusion_value = expert_value if pred_date in expert_switch_dates and expert_row else ml_value
 
         if expert_row:
             expert_out = dict(ml_row)
@@ -351,7 +429,7 @@ def build_station_holiday_prediction_rows(
         fusion_out['F_PKLCOUNT'] = fusion_value
         fusion_out['CREATOR'] = 'fusion_predict'
         fusion_out['REMARKS'] = generate_remarks_hash(
-            "车站融合预测: 平常日沿用KNN, 节假日切换专家系统"
+            "车站融合预测: 平常日沿用KNN, 节假日及节前2天切换专家系统"
         )
         fusion_rows.append(fusion_out)
 

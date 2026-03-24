@@ -36,11 +36,7 @@ from db_pool import get_db_connection
 from db_utils import read_line_daily_flow_history, read_station_daily_flow_history
 from enknn_model import KNNFlowPredictor
 from holiday_predict_utils import predict_line_flow, predict_station_flow
-from predict_daily import (
-    get_holiday_fusion_alpha,
-    get_line_data,
-    preprocess_daily_data,
-)
+from predict_daily import get_line_data, preprocess_daily_data
 from weather_enum import WeatherType, get_weather_severity
 from common_utils import parse_temperature_value
 
@@ -264,23 +260,12 @@ def evaluate_group(flow_type: str, metric_type: str = "F_PKLCOUNT") -> Dict:
             if expert_acc is not None:
                 holiday_expert.append(expert_acc)
 
-            fusion_acc = None
-            if ml_pred is not None and expert_pred is not None:
-                factor_stub = pd.Series({
-                    "F_HOLIDAYTYPE": calendar_row.get("F_HOLIDAYTYPE", 0),
-                    "F_HOLIDAYWHICHDAY": calendar_row.get("F_HOLIDAYWHICHDAY", 0),
-                })
-                alpha = get_holiday_fusion_alpha(factor_stub)
-                fused_pred = alpha * ml_pred + (1 - alpha) * expert_pred
-                fusion_acc = calculate_accuracy(fused_pred, actual)
-                if fusion_acc is not None:
-                    holiday_fusion.append(fusion_acc)
+            fusion_pred = expert_pred if expert_pred is not None else ml_pred
+            fusion_acc = calculate_accuracy(fusion_pred, actual) if fusion_pred is not None else None
+            if fusion_acc is not None:
+                holiday_fusion.append(fusion_acc)
 
-            if flow_type == "line":
-                chosen_acc = fusion_acc if fusion_acc is not None else ml_acc
-            else:
-                candidate_scores = [score for score in [expert_acc, fusion_acc, ml_acc] if score is not None]
-                chosen_acc = max(candidate_scores) if candidate_scores else None
+            chosen_acc = fusion_acc if fusion_acc is not None else ml_acc
 
             if chosen_acc is not None:
                 production_scores.append(chosen_acc)

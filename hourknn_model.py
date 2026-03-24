@@ -25,7 +25,7 @@ logger = get_model_logger()
 DEFAULT_KNN_FACTORS = [
     'F_YEAR', 'F_HOLIDAYWHICHDAY', 'F_DAYOFWEEK', 'F_WEATHER',
     'F_WEEK', 'F_HOLIDAYTYPE', 'F_HOLIDAYDAYS',
-    'WEATHER_TYPE', 'F_HOUR', 'F_RUSH_HOUR_TYPE'
+    'WEATHER_TYPE', 'WEATHER_SEVERITY', 'F_HOUR', 'F_RUSH_HOUR_TYPE'
 ]
 
 def calculate_rush_hour_type(hour) -> int:

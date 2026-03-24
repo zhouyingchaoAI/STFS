@@ -504,7 +504,8 @@ def read_line_hourly_flow_history(metric_type: str, query_start_date: str = None
             CC.F_HOLIDAYWHICHDAY,
             CC.COVID19,
             CC.F_WEATHER,
-            W.F_TQQK AS WEATHER_TYPE
+            W.F_TQQK AS WEATHER_TYPE,
+            W.F_QW AS TEMPERATURE_RAW
         FROM 
             dbo.LineHourlyFlowHistory AS H
         LEFT JOIN 
@@ -625,8 +626,8 @@ def read_station_hourly_flow_history(metric_type: str, query_start_date: str = N
             master.dbo.CalendarHistory AS CC
             ON REPLACE(S.SQUAD_DATE, '-', '') = CC.F_DATE
         LEFT JOIN
-            master.dbo.WeatherFuture AS W
-            ON S.SQUAD_DATE = W.F_DATE
+            master.dbo.WeatherHistory AS W
+            ON REPLACE(S.SQUAD_DATE, '-', '') = W.F_DATE
         {where_sql}
         GROUP BY 
             S.SQUAD_DATE, S.TIME_SECTION_ID, S.STATION_NAME
@@ -679,7 +680,7 @@ def read_station_hourly_flow_history(metric_type: str, query_start_date: str = N
                     master.dbo.CalendarHistory AS CC
                     ON REPLACE(S.SQUAD_DATE, '-', '') = CC.F_DATE
                 LEFT JOIN
-                    master.dbo.WeatherFuture AS W
+                    master.dbo.WeatherHistory AS W
                     ON REPLACE(S.SQUAD_DATE, '-', '') = W.F_DATE
                 {where_sql2}
                 GROUP BY 
@@ -1292,10 +1293,31 @@ def upload_station_daily_prediction_sample(prediction_rows: List[Dict], metric_t
 
     if not prediction_rows:
         return
+
+    def ensure_station_predict_creator_column(conn, cursor):
+        cursor.execute("""
+        SELECT COLUMN_NAME
+        FROM CxFlowPredict.INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_NAME = 'STATION_FLOW_PREDICT' AND COLUMN_NAME = 'CREATOR'
+        """)
+        exists = cursor.fetchone()
+        if not exists:
+            cursor.execute("""
+            ALTER TABLE [CxFlowPredict].[dbo].STATION_FLOW_PREDICT
+            ADD CREATOR varchar(50) NULL
+            """)
+        cursor.execute("""
+        UPDATE [CxFlowPredict].[dbo].STATION_FLOW_PREDICT
+        SET CREATOR = 'knn_predict'
+        WHERE CREATOR IS NULL
+        """)
+        conn.commit()
+
     try:
         # 写入时使用默认连接（不设置 charset），避免 NVARCHAR 字段写入乱码
         conn = get_db_conn(charset=None)
         cursor = conn.cursor()
+        ensure_station_predict_creator_column(conn, cursor)
         for row in prediction_rows:
             # id_val = row.get('ID', str(uuid.uuid4()))
             def to_int(val):
@@ -1360,6 +1382,7 @@ def upload_station_daily_prediction_sample(prediction_rows: List[Dict], metric_t
             # 默认字段
             metric_field = metric_field_map.get(metric_type, "F_PKLCOUNT")
             metric_value = to_float(row.get(metric_field, row.get('F_PKLCOUNT')))
+            creator = row.get('CREATOR') or 'knn_predict'
 
             # 构建UPDATE语句
             update_sql = f"""
@@ -1369,8 +1392,9 @@ def upload_station_daily_prediction_sample(prediction_rows: List[Dict], metric_t
                 STATION_NAME=%s,
                 SQUAD_DATE=%s,
                 PREDICT_DATE=%s,
-                {metric_field}=%s
-            WHERE LINE_ID=%s AND STATION_ID=%s AND SQUAD_DATE=%s
+                {metric_field}=%s,
+                CREATOR=%s
+            WHERE LINE_ID=%s AND STATION_ID=%s AND SQUAD_DATE=%s AND CREATOR=%s
             """
             
             lineids = get_lineids_by_station(row.get('F_LINENAME'))
@@ -1383,9 +1407,11 @@ def upload_station_daily_prediction_sample(prediction_rows: List[Dict], metric_t
                     to_str(row.get('F_DATE')),
                     to_str(row.get('PREDICT_DATE')),
                     to_int(metric_value),
+                    creator,
                     lid.get('LINE_ID'),
                     lid.get('STATION_ID'),
                     to_str(row.get('F_DATE')),
+                    creator,
                 )
 
                 cursor.execute(update_sql, update_params)
@@ -1394,10 +1420,10 @@ def upload_station_daily_prediction_sample(prediction_rows: List[Dict], metric_t
                     # 没有更新到，插入
                     insert_sql = f"""
                     INSERT INTO [CxFlowPredict].[dbo].STATION_FLOW_PREDICT (
-                        ID, LINE_ID, STATION_ID, STATION_NAME, SQUAD_DATE, PREDICT_DATE, 
-                        {metric_field}
+                        ID, LINE_ID, STATION_ID, STATION_NAME, SQUAD_DATE, PREDICT_DATE,
+                        {metric_field}, CREATOR
                     ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s
+                        %s, %s, %s, %s, %s, %s, %s, %s
                     )
                     """
                     insert_params = (
@@ -1407,7 +1433,8 @@ def upload_station_daily_prediction_sample(prediction_rows: List[Dict], metric_t
                         row.get('F_LINENAME'),
                         to_str(row.get('F_DATE')),
                         to_str(row.get('PREDICT_DATE')),
-                        metric_value
+                        metric_value,
+                        creator
                     )
                     cursor.execute(insert_sql, insert_params)
             

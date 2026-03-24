@@ -72,8 +72,8 @@ class WeatherType(Enum):
         return [weather.value for weather in cls]
 
     @classmethod
-    def get_weather_by_name(cls, name: str):
-        """通过原始名称获取天气类型枚举，无法查到的返回未知"""
+    def get_weather_by_name_legacy(cls, name: str):
+        """保留旧版精确映射，便于回测对比。"""
         mapping = {
             "多云 /  多云": cls.多云____多云,
             "晴 /  晴": cls.晴____晴,
@@ -138,6 +138,74 @@ class WeatherType(Enum):
         }
         return mapping.get(name, cls.未知)
 
+    @classmethod
+    def _classify_single_token(cls, token: str):
+        token = token.strip()
+        if not token:
+            return cls.未知
+        if "雷阵雨" in token:
+            return cls.阵雨____小雨
+        if "阵雨" in token:
+            return cls.阵雨____小雨
+        if "暴雪" in token:
+            return cls.雨夹雪____暴雪
+        if "大雪" in token:
+            return cls.大雪____大雪
+        if "中雪" in token:
+            return cls.中雪____多云
+        if "小雪" in token:
+            return cls.小雨____小雪
+        if "冻雨" in token:
+            return cls.冻雨____冻雨
+        if "雨夹雪" in token:
+            return cls.雨夹雪____雨夹雪
+        if "暴雨" in token:
+            return cls.暴雨____暴雨
+        if "大雨" in token:
+            return cls.大雨____大雨
+        if "中雨" in token or "小中雨" in token:
+            return cls.中雨____中雨
+        if "小雨" in token:
+            return cls.小雨____小雨
+        if "阴" in token:
+            return cls.阴____阴
+        if "晴间多云" in token or "少云" in token or "多云" in token:
+            return cls.多云____多云
+        if "晴" in token:
+            return cls.晴____晴
+        return cls.未知
+
+    @classmethod
+    def get_weather_by_name(cls, name: str):
+        """通过原始名称获取天气类型枚举，优先精确匹配，再退化到关键词解析。"""
+        name = str(name or "").strip()
+        if not name:
+            return cls.未知
+
+        exact = cls.get_weather_by_name_legacy(name)
+        if exact != cls.未知:
+            return exact
+
+        normalized = name.replace("／", "/").replace("转为", "转").replace("转-", "转")
+        if "/" in normalized:
+            tokens = [part.strip() for part in normalized.split("/") if part.strip()]
+        elif "转" in normalized:
+            tokens = [part.strip() for part in normalized.split("转") if part.strip()]
+        else:
+            tokens = [normalized]
+
+        token_types = [cls._classify_single_token(token) for token in tokens if token]
+        token_values = [weather.value for weather in token_types if weather != cls.未知]
+
+        if not token_values:
+            return cls.未知
+
+        if all(value in (cls.晴____晴.value, cls.多云____多云.value) for value in token_values):
+            return cls.晴____晴 if cls.晴____晴.value in token_values else cls.多云____多云
+
+        max_value = max(token_values)
+        return next((weather for weather in token_types if weather.value == max_value), cls.未知)
+
 # 15个简化天气类型说明
 SIMPLIFIED_WEATHER_TYPES = {
     0: "晴天",      # 对客流影响最小
@@ -160,6 +228,28 @@ SIMPLIFIED_WEATHER_TYPES = {
 def get_weather_type_name(value: int) -> str:
     """根据天气类型值获取天气名称"""
     return SIMPLIFIED_WEATHER_TYPES.get(value, "未知")
+
+
+def get_weather_severity(value: int) -> int:
+    """返回天气强度分级，便于模型学习连续影响。"""
+    severity_mapping = {
+        0: 0,   # 晴
+        1: 1,   # 多云
+        2: 2,   # 阴
+        3: 3,   # 小雨
+        4: 4,   # 中雨
+        5: 5,   # 大雨
+        6: 6,   # 暴雨
+        7: 3,   # 阵雨/雷阵雨，按小雨强度
+        8: 3,   # 小雪
+        9: 4,   # 中雪
+        10: 5,  # 大雪
+        11: 6,  # 暴雪
+        12: 5,  # 雨夹雪
+        13: 6,  # 冻雨
+        14: 0,  # 未知，回退为中性
+    }
+    return severity_mapping.get(value, 0)
 
 def get_weather_impact_level(value: int) -> str:
     """获取天气对地铁客流的影响程度"""

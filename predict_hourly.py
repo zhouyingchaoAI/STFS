@@ -25,7 +25,7 @@ from db_utils import (
 from hourknn_model import KNNHourlyFlowPredictor
 from config_utils import get_version_dir, get_current_version
 from plot_utils import plot_hourly_predictions
-from weather_enum import WeatherType
+from weather_enum import WeatherType, get_weather_severity
 from common_utils import (
     to_int, safe_get, safe_get_int,
     normalize_line_no, validate_required_columns,
@@ -52,7 +52,7 @@ HOURLY_FACTOR_COLUMNS = [
     'F_DATE', 'F_HOUR', 'F_YEAR', 'F_WEEK', 'F_HOLIDAYTYPE',
     'F_HOLIDAYDAYS', 'F_HOLIDAYWHICHDAY', 'F_DAYOFWEEK',
     'F_LINENO', 'F_LINENAME', 'F_KLCOUNT', 'F_WEATHER',
-    'WEATHER_TYPE', 'F_RUSH_HOUR_TYPE'
+    'WEATHER_TYPE', 'WEATHER_SEVERITY', 'F_RUSH_HOUR_TYPE'
 ]
 
 
@@ -138,6 +138,7 @@ def preprocess_hourly_data(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, st
     df['WEATHER_TYPE'] = df['WEATHER_TYPE'].apply(
         lambda x: WeatherType.get_weather_by_name(str(x)).value
     )
+    df['WEATHER_SEVERITY'] = df['WEATHER_TYPE'].apply(get_weather_severity)
     
     # 添加早晚高峰因子
     df['F_RUSH_HOUR_TYPE'] = df['F_HOUR'].apply(calculate_rush_hour_type)
@@ -213,6 +214,7 @@ def build_hourly_prediction_row(
         'F_HOLIDAYWHICHDAY': safe_get_int(factor_row, 'F_HOLIDAYWHICHDAY') if factor_row is not None else None,
         'F_DAYOFWEEK': safe_get_int(factor_row, 'F_DAYOFWEEK') if factor_row is not None else None,
         'WEATHER_TYPE': safe_get_int(factor_row, 'WEATHER_TYPE') if factor_row is not None else None,
+        'WEATHER_SEVERITY': safe_get_int(factor_row, 'WEATHER_SEVERITY') if factor_row is not None else None,
         'F_RUSH_HOUR_TYPE': safe_get_int(factor_row, 'F_RUSH_HOUR_TYPE', calculate_rush_hour_type(hour)) if factor_row is not None else calculate_rush_hour_type(hour),
         'F_YEAR': safe_get_int(factor_row, 'F_YEAR', int(pred_date[:4])) if factor_row is not None else int(pred_date[:4]),
     }
@@ -255,6 +257,7 @@ def create_hourly_holiday_features(
         holiday_features['WEATHER_TYPE'] = holiday_features['WEATHER_TYPE'].apply(
             lambda x: WeatherType.get_weather_by_name(str(x)).value
         )
+        holiday_features['WEATHER_SEVERITY'] = holiday_features['WEATHER_TYPE'].apply(get_weather_severity)
         
         # 为每个小时生成因子
         hourly_features = []
@@ -276,6 +279,7 @@ def create_hourly_holiday_features(
             'F_HOLIDAYWHICHDAY': [None] * 24,
             'F_DAYOFWEEK': [None] * 24,
             'WEATHER_TYPE': [0] * 24,
+            'WEATHER_SEVERITY': [0] * 24,
             'F_RUSH_HOUR_TYPE': [calculate_rush_hour_type(h) for h in range(24)],
         })
 

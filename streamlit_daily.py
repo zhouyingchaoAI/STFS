@@ -240,10 +240,46 @@ def get_holiday_fusion_alpha(holiday_info: Optional[Dict]) -> float:
 
 
 def should_use_expert_fusion(holiday_info: Optional[Dict]) -> bool:
-    """节假日融合序列直接采用专家系统，平常日沿用 KNN。"""
+    """仅法定节假日切换专家系统，周末/调休仍沿用 KNN。"""
     if not holiday_info:
         return False
-    return int(holiday_info.get("type_id", 0) or 0) > 0
+    holiday_type_id = int(holiday_info.get("type_id", 0) or 0)
+    holiday_days = int(holiday_info.get("total_days", 0) or 0)
+    which_day = int(holiday_info.get("which_day", 0) or 0)
+    return holiday_type_id in {1, 2, 3, 4, 5, 6, 7} and holiday_days > 0 and 1 <= which_day <= holiday_days
+
+
+def build_expert_switch_dates(holidays: List[Dict], pre_days: int = 1, post_days: int = 0) -> set[str]:
+    """法定节假日当天及节前指定天数切换专家系统。"""
+    holiday_dates = sorted({str(item.get("date", "")).strip() for item in holidays if item.get("date")})
+    if not holiday_dates:
+        return set()
+
+    switch_dates = set(holiday_dates)
+    blocks = []
+    current_block = []
+    for date_str in holiday_dates:
+        current_dt = datetime.strptime(date_str, "%Y%m%d")
+        if current_block:
+            prev_dt = datetime.strptime(current_block[-1], "%Y%m%d")
+            if current_dt == prev_dt + timedelta(days=1):
+                current_block.append(date_str)
+            else:
+                blocks.append(current_block)
+                current_block = [date_str]
+        else:
+            current_block = [date_str]
+    if current_block:
+        blocks.append(current_block)
+
+    for block in blocks:
+        start_dt = datetime.strptime(block[0], "%Y%m%d")
+        end_dt = datetime.strptime(block[-1], "%Y%m%d")
+        for offset in range(1, pre_days + 1):
+            switch_dates.add((start_dt - timedelta(days=offset)).strftime("%Y%m%d"))
+        for offset in range(1, post_days + 1):
+            switch_dates.add((end_dt + timedelta(days=offset)).strftime("%Y%m%d"))
+    return switch_dates
 
 
 def get_model_versions(model_dir, prefix=""):
@@ -397,6 +433,7 @@ def build_holiday_comparison_image(
     knn_results: Dict,
     expert_results: Dict,
     holidays: List[Dict],
+    flow_type: str,
     SUBWAY_GREEN: str = "#00ffd5",
     SUBWAY_ACCENT: str = "#bf00ff",
     SUBWAY_CARD: str = "#1e2439",
@@ -410,6 +447,10 @@ def build_holiday_comparison_image(
 
     holiday_dates = [h["date"] for h in holidays]
     holiday_set = set(holiday_dates)
+    if flow_type == "chezhan":
+        expert_switch_dates = build_expert_switch_dates(holidays, pre_days=2, post_days=0)
+    else:
+        expert_switch_dates = build_expert_switch_dates(holidays, pre_days=3, post_days=0)
     if not holiday_set:
         return None
 
@@ -433,11 +474,7 @@ def build_holiday_comparison_image(
         expert_pred = int(pred.get("预测客流", pred.get("predicted_flow", 0)) or 0)
         holiday_type = int(pred.get("节假日类型", 0) or 0)
         holiday_day_index = int(pred.get("第几天", pred.get("节假日第几天", 0)) or 0)
-        holiday_info = {
-            "type_id": holiday_type,
-            "which_day": holiday_day_index,
-        }
-        fusion_pred = expert_pred if should_use_expert_fusion(holiday_info) else knn_pred
+        fusion_pred = expert_pred if date_str in expert_switch_dates else knn_pred
 
         actual_flow = pred.get("实际客流")
         actual_flow = int(actual_flow) if actual_flow is not None else None
@@ -527,6 +564,7 @@ def render_holiday_comparison(
     knn_results: Dict,
     expert_results: Dict,
     holidays: List[Dict],
+    flow_type: str,
     SUBWAY_GREEN: str = "#00ffd5",
     SUBWAY_ACCENT: str = "#bf00ff",
     SUBWAY_CARD: str = "#1e2439",
@@ -582,7 +620,7 @@ def render_holiday_comparison(
     ">
         <p style="margin: 0; color: #d0d7e8; font-size: 0.9rem;">
             💡 <strong style="color: #ffaa00;">建议</strong>：融合结果序列当前采用
-            <strong>平常日使用 KNN、节假日使用专家系统</strong> 的切换策略。
+            <strong>平常日使用 KNN，节前和节中使用专家系统</strong> 的切换策略。
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -623,7 +661,10 @@ def render_holiday_comparison(
         flow = pred.get("预测客流", pred.get("predicted_flow", 0))
         expert_by_line[line_name][date_str] = flow
 
-    holiday_context_by_date = {str(item["date"]): item for item in holidays}
+    if flow_type == "chezhan":
+        expert_switch_dates = build_expert_switch_dates(holidays, pre_days=2, post_days=0)
+    else:
+        expert_switch_dates = build_expert_switch_dates(holidays, pre_days=3, post_days=0)
     fusion_by_line = {}
     all_line_names = set(knn_results.keys()) | set(expert_by_line.keys())
     for line_name in all_line_names:
@@ -635,10 +676,8 @@ def render_holiday_comparison(
         for date_str in all_dates:
             knn_flow = line_knn.get(date_str)
             expert_flow = line_expert.get(date_str)
-            holiday_info = holiday_context_by_date.get(date_str)
-
             if knn_flow is not None and expert_flow is not None:
-                fusion_flow = expert_flow if should_use_expert_fusion(holiday_info) else knn_flow
+                fusion_flow = expert_flow if date_str in expert_switch_dates else knn_flow
             else:
                 fusion_flow = knn_flow if knn_flow is not None else expert_flow
 
@@ -651,6 +690,7 @@ def render_holiday_comparison(
         knn_results=knn_results,
         expert_results=expert_results,
         holidays=holidays,
+        flow_type=flow_type,
         SUBWAY_GREEN=SUBWAY_GREEN,
         SUBWAY_ACCENT=SUBWAY_ACCENT,
         SUBWAY_CARD=SUBWAY_CARD,
@@ -1483,6 +1523,7 @@ def daily_tab(SUBWAY_GREEN, SUBWAY_ACCENT, SUBWAY_CARD, SUBWAY_FONT, SUBWAY_BG, 
                 knn_results=knn_results,
                 expert_results=expert_results,
                 holidays=holidays,
+                flow_type=flow_type,
                 SUBWAY_GREEN=SUBWAY_GREEN,
                 SUBWAY_ACCENT=SUBWAY_ACCENT,
                 SUBWAY_CARD=SUBWAY_CARD,

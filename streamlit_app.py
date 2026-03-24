@@ -247,7 +247,8 @@ def main():
         tab_options = [
             f"📅 {flow_type_label} - 日预测",
             f"🕐 {flow_type_label} - 小时预测",
-            f"🎯 节假日预测 (人工算法)"
+            f"🎯 节假日预测 (人工算法)",
+            f"📚 {flow_type_label} - 预测结果查看",
         ]
         tab_choice = st.selectbox(
             "⏱️ 预测模式",
@@ -259,6 +260,8 @@ def main():
     # 显示当前配置状态
     if "节假日" in tab_choice:
         mode_text = "节假日预测"
+    elif "预测结果查看" in tab_choice:
+        mode_text = "预测结果查看"
     elif "日预测" in tab_choice:
         mode_text = "日预测"
     else:
@@ -315,7 +318,10 @@ def main():
     if tab_choice is not None:
         if isinstance(tab_choice, str) and "节假日" in tab_choice:
             # 节假日预测模块 - 基于人工算法
-            from streamlit_holiday import holiday_tab
+            try:
+                from streamlit_holiday import holiday_tab
+            except ModuleNotFoundError:
+                from .streamlit_holiday import holiday_tab
             holiday_tab(
                 SUBWAY_GREEN=CYBER_THEME["PRIMARY"],
                 SUBWAY_ACCENT=CYBER_THEME["ACCENT"],
@@ -326,7 +332,10 @@ def main():
                 metric_type=selected_flow_metric_key
             )
         elif isinstance(tab_choice, str) and "小时预测" in tab_choice:
-            from streamlit_hourly import hourly_tab
+            try:
+                from streamlit_hourly import hourly_tab
+            except ModuleNotFoundError:
+                from .streamlit_hourly import hourly_tab
             hourly_tab(
                 SUBWAY_GREEN=CYBER_THEME["PRIMARY"],
                 SUBWAY_ACCENT=CYBER_THEME["ACCENT"],
@@ -336,8 +345,25 @@ def main():
                 flow_type=flow_type_key,
                 metric_type=selected_flow_metric_key
             )
+        elif isinstance(tab_choice, str) and "预测结果查看" in tab_choice:
+            try:
+                from streamlit_prediction_view import prediction_view_tab
+            except ModuleNotFoundError:
+                from .streamlit_prediction_view import prediction_view_tab
+            prediction_view_tab(
+                SUBWAY_GREEN=CYBER_THEME["PRIMARY"],
+                SUBWAY_ACCENT=CYBER_THEME["ACCENT"],
+                SUBWAY_CARD=CYBER_THEME["BG_SURFACE"],
+                SUBWAY_FONT=CYBER_THEME["TEXT_PRIMARY"],
+                SUBWAY_BG=CYBER_THEME["BG_BASE"],
+                flow_type=flow_type_key,
+                metric_type=selected_flow_metric_key
+            )
         elif isinstance(tab_choice, str) and "日预测" in tab_choice:
-            from streamlit_daily import daily_tab
+            try:
+                from streamlit_daily import daily_tab
+            except ModuleNotFoundError:
+                from .streamlit_daily import daily_tab
             daily_tab(
                 SUBWAY_GREEN=CYBER_THEME["PRIMARY"],
                 SUBWAY_ACCENT=CYBER_THEME["ACCENT"],

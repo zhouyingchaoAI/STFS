@@ -10,6 +10,7 @@ modules = [
     "streamlit_daily.py",
     "streamlit_hourly.py",
     "streamlit_holiday.py",
+    "streamlit_prediction_view.py",
     "predict_daily.py",
     "predict_hourly.py",
     "hourknn_model.py",
